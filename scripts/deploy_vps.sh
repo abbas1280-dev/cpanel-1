@@ -117,9 +117,9 @@ sudo chmod 644 /usr/share/phpmyadmin/sso.php
 # 7. Start application via PM2
 echo "[+] Setting up process supervisor (PM2)..."
 sudo npm install -g pm2
-pm2 delete cpanel-app 2>/dev/null || true
-pm2 start "npx vite --port 5173 --host 0.0.0.0" --name "cpanel-app"
-pm2 save
+npx pm2 delete cpanel-app 2>/dev/null || true
+npx pm2 start "npx vite --port 5173 --host 0.0.0.0" --name "cpanel-app"
+npx pm2 save
 
 echo "=========================================================="
 echo " Deployment Successfully Completed! "
