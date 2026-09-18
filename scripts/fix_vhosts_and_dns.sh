@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# HOSTER 1280 - Master VirtualHost, DNS (Bind9), and Permissions Automation Fixer
+# HOSTER 1280 - Master VirtualHost, DNS (Bind9), and Portal Reverse Proxy Fixer
 # ==============================================================================
-# Resolves:
-# 1. Standalone direct domain execution (https://domain.com -> public_html)
-# 2. DNS_PROBE_FINISHED_NXDOMAIN by updating Bind9 authoritative zones with Real Public IP
-# 3. Nginx + PHP-FPM VirtualHost routing per domain
+# 1. Ensures hoster1280.shop serves HOSTER 1280 Control Panel Portal (:5173)
+# 2. Ensures customer domains (turkyhub.com, etc.) execute directly from public_html via Nginx + PHP-FPM
+# 3. Ensures Bind9 Authoritative DNS resolves all domains with real public IP (208.72.218.129)
 # ==============================================================================
 
 set -e
@@ -66,22 +65,113 @@ mkdir -p /etc/bind/zones
 NAMED_LOCAL="/etc/bind/named.conf.local"
 SERIAL=$(date +%Y%m%d01)
 
-# List of all domains to configure
-DOMAINS=("turkyhub.com" "tamim1280.shop" "topup1280.shop" "hoster1280.shop")
+# ==============================================================================
+# 6. MASTER PORTAL NGINX CONFIGURATION (hoster1280.shop -> :5173 & phpMyAdmin)
+# ==============================================================================
+# Remove any conflicting customer vhost for hoster1280.shop
+rm -f /etc/nginx/sites-enabled/hoster1280.shop.conf /etc/nginx/sites-available/hoster1280.shop.conf 2>/dev/null || true
+
+echo "[+] Configuring Master Edge Reverse Proxy for HOSTER 1280 Portal..."
+cat << 'EOF' > /etc/nginx/sites-available/default
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name hoster1280.shop www.hoster1280.shop _;
+
+    client_max_body_size 128M;
+
+    # Redirect /phpmyadmin to /phpmyadmin/
+    location = /phpmyadmin {
+        return 301 /phpmyadmin/;
+    }
+
+    # phpMyAdmin reverse proxy
+    location /phpmyadmin/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /phpmyadmin;
+        proxy_redirect / /phpmyadmin/;
+    }
+
+    # HOSTER 1280 Control Panel & Client Area (Vite on :5173)
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# ==============================================================================
+# 7. BIND9 ZONE FOR MASTER PORTAL (hoster1280.shop with ns1, ns2, glue records)
+# ==============================================================================
+PORTAL_ZONE="/etc/bind/zones/db.hoster1280.shop"
+cat <<EOF > "$PORTAL_ZONE"
+; Authoritative zone for hoster1280.shop
+; Managed by HOSTER 1280 Master DNS Engine
+\$TTL 86400
+@ IN SOA ns1.hoster1280.shop. hostmaster.hoster1280.shop. (
+    ${SERIAL}
+    7200
+    3600
+    1209600
+    86400 )
+@       IN  NS      ns1.hoster1280.shop.
+@       IN  NS      ns2.hoster1280.shop.
+@       IN  A       ${REAL_IP}
+www     IN  A       ${REAL_IP}
+ns1     IN  A       ${REAL_IP}
+ns2     IN  A       ${REAL_IP}
+cpanel  IN  A       ${REAL_IP}
+mail    IN  A       ${REAL_IP}
+ftp     IN  A       ${REAL_IP}
+@       IN  MX  10  mail.hoster1280.shop.
+@       IN  TXT     "v=spf1 a mx ip4:${REAL_IP} ~all"
+EOF
+chmod 644 "$PORTAL_ZONE"
+chown bind:bind "$PORTAL_ZONE" 2>/dev/null || true
+
+if [ -f "$NAMED_LOCAL" ]; then
+    if ! grep -q 'zone "hoster1280.shop"' "$NAMED_LOCAL"; then
+        cat <<EOF >> "$NAMED_LOCAL"
+
+zone "hoster1280.shop" {
+    type master;
+    file "${PORTAL_ZONE}";
+    allow-transfer { none; };
+};
+EOF
+    fi
+fi
+
+# ==============================================================================
+# 8. CUSTOMER DOMAINS (turkyhub.com, tamim1280.shop, topup1280.shop, etc.)
+# ==============================================================================
+DOMAINS=("turkyhub.com" "tamim1280.shop" "topup1280.shop")
 for d_dir in "${STORAGE_DIR}/domains"/*; do
     if [ -d "$d_dir" ]; then
         b_name=$(basename "$d_dir")
-        if [[ ! " ${DOMAINS[@]} " =~ " ${b_name} " ]]; then
+        if [ "$b_name" != "hoster1280.shop" ] && [[ ! " ${DOMAINS[@]} " =~ " ${b_name} " ]]; then
             DOMAINS+=("$b_name")
         fi
     fi
 done
 
-echo "[+] Domains to configure: ${DOMAINS[*]}"
+echo "[+] Customer domains to configure: ${DOMAINS[*]}"
 
 for DOMAIN in "${DOMAINS[@]}"; do
     echo "----------------------------------------------------------"
-    echo "[+] Configuring domain: ${DOMAIN}"
+    echo "[+] Configuring Customer VirtualHost & DNS for: ${DOMAIN}"
     
     DOCROOT="${STORAGE_DIR}/domains/${DOMAIN}/public_html"
     LOGDIR="${STORAGE_DIR}/domains/${DOMAIN}/logs"
@@ -122,7 +212,7 @@ EOF
     chmod -R 755 "${STORAGE_DIR}/domains/${DOMAIN}"
     chown -R www-data:www-data "$DOCROOT" 2>/dev/null || true
 
-    # 5.1 Nginx Server Block
+    # 8.1 Customer Nginx Server Block
     cat <<EOF > "/etc/nginx/sites-available/${DOMAIN}.conf"
 # Live Nginx VirtualHost for ${DOMAIN}
 # Managed by HOSTER 1280 Multi-Tenant Engine
@@ -166,7 +256,7 @@ EOF
 
     ln -sf "/etc/nginx/sites-available/${DOMAIN}.conf" "/etc/nginx/sites-enabled/${DOMAIN}.conf"
 
-    # 5.2 Bind9 Authoritative Zone File
+    # 8.2 Bind9 Authoritative Zone File
     ZONE_FILE="/etc/bind/zones/db.${DOMAIN}"
     cat <<EOF > "$ZONE_FILE"
 ; Authoritative zone for ${DOMAIN}
@@ -205,7 +295,7 @@ EOF
         fi
     fi
 
-    # 5.3 Update local json DNS zone inside server_storage
+    # 8.3 Update local json DNS zone inside server_storage
     DNS_JSON="${STORAGE_DIR}/domains/${DOMAIN}/etc/dns_zone.json"
     if [ -f "$DNS_JSON" ]; then
         sed -i -E "s/192\.168\.[0-9]+\.[0-9]+/${REAL_IP}/g" "$DNS_JSON" 2>/dev/null || true
@@ -213,14 +303,14 @@ EOF
     fi
 done
 
-# 6. Test & Reload Nginx
+# 9. Test & Reload Nginx
 echo "----------------------------------------------------------"
 echo "[+] Validating Nginx configuration..."
 nginx -t
 systemctl reload nginx || service nginx reload
 echo "[+] Nginx reloaded successfully!"
 
-# 7. Test & Reload Bind9
+# 10. Test & Reload Bind9
 if [ -f "$NAMED_LOCAL" ]; then
     echo "[+] Validating Bind9 configuration..."
     if command -v named-checkconf >/dev/null 2>&1; then
@@ -232,5 +322,6 @@ fi
 
 echo "=========================================================="
 echo " VirtualHosts & Bind9 DNS Zones Configured Successfully! "
-echo " Real Server IP: ${REAL_IP} "
+echo " Portal:      http://hoster1280.shop (Proxy to :5173) "
+echo " Real Server: ${REAL_IP} "
 echo "=========================================================="

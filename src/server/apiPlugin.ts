@@ -461,6 +461,9 @@ function getPhpFpmSocket(): string {
 
 export async function syncLiveNginxVHost(mainDomain: string, domain: string, relDocRoot: string, forceHttps: boolean): Promise<boolean> {
   try {
+    if (domain.toLowerCase() === 'hoster1280.shop') {
+      return true;
+    }
     const domainRoot = path.join(STORAGE_ROOT, 'domains', mainDomain);
     const cleanRel = (relDocRoot || 'public_html').replace(/^\/+/, '').replace(/\\/g, '/');
     const fullDocRoot = path.resolve(domainRoot, cleanRel).replace(/\\/g, '/');
