@@ -1458,7 +1458,10 @@ export async function createPhpMyAdminSSOToken(domain: string, accountPrefix: st
   }
 
   const host = clientHost || 'localhost';
-  const ssoUrl = `http://${host}:8080/sso.php?token=${token}${database ? '&db=' + encodeURIComponent(database) : ''}`;
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.');
+  const ssoUrl = isLocal
+    ? `http://${host}:8080/sso.php?token=${token}${database ? '&db=' + encodeURIComponent(database) : ''}`
+    : `/phpmyadmin/sso.php?token=${token}${database ? '&db=' + encodeURIComponent(database) : ''}`;
 
   return {
     success: true,

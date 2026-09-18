@@ -10,3 +10,10 @@ $cfg['Servers'][1]['port'] = 3306;
 $cfg['Servers'][1]['connect_type'] = 'tcp';
 $cfg['Servers'][1]['compress'] = false;
 $cfg['Servers'][1]['AllowNoPassword'] = false;
+
+// Support reverse proxy subpath (/phpmyadmin/)
+if (!empty($_SERVER['HTTP_X_FORWARDED_PREFIX'])) {
+    $cfg['PmaAbsoluteUri'] = $_SERVER['HTTP_X_FORWARDED_PREFIX'] . '/';
+} elseif (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/phpmyadmin') !== false) {
+    $cfg['PmaAbsoluteUri'] = '/phpmyadmin/';
+}

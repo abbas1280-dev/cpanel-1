@@ -8,6 +8,13 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: true
+    allowedHosts: true,
+    proxy: {
+      '/phpmyadmin': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/phpmyadmin/, '')
+      }
+    }
   }
 })

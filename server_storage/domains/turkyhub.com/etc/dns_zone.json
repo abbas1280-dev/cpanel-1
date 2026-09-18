@@ -72,7 +72,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108657-1",
+    "id": "rec-1789700643070-1",
     "name": "turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -81,7 +81,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108657-2",
+    "id": "rec-1789700643070-2",
     "name": "www.turkyhub.com",
     "type": "CNAME",
     "value": "turkyhub.com",
@@ -90,7 +90,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108662-1",
+    "id": "rec-1789700643074-1",
     "name": "api.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -99,7 +99,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108662-2",
+    "id": "rec-1789700643074-2",
     "name": "www.api.turkyhub.com",
     "type": "CNAME",
     "value": "api.turkyhub.com",
@@ -108,7 +108,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108667-1",
+    "id": "rec-1789700643078-1",
     "name": "shop.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -117,7 +117,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108667-2",
+    "id": "rec-1789700643078-2",
     "name": "www.shop.turkyhub.com",
     "type": "CNAME",
     "value": "shop.turkyhub.com",
@@ -126,7 +126,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108671-1",
+    "id": "rec-1789700643082-1",
     "name": "lsd.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -135,7 +135,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789699108671-2",
+    "id": "rec-1789700643082-2",
     "name": "www.lsd.turkyhub.com",
     "type": "CNAME",
     "value": "lsd.turkyhub.com",

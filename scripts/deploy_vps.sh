@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -e
 
 export DEBIAN_FRONTEND=noninteractive
@@ -63,6 +63,12 @@ $cfg['Servers'][$i]['port'] = '3306';
 $cfg['Servers'][$i]['connect_type'] = 'tcp';
 $cfg['Servers'][$i]['compress'] = false;
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
+
+if (!empty($_SERVER['HTTP_X_FORWARDED_PREFIX'])) {
+    $cfg['PmaAbsoluteUri'] = $_SERVER['HTTP_X_FORWARDED_PREFIX'] . '/';
+} elseif (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/phpmyadmin') !== false) {
+    $cfg['PmaAbsoluteUri'] = '/phpmyadmin/';
+}
 EOF
 
 PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
@@ -71,6 +77,7 @@ if [ -z "$PHP_SOCK" ]; then
     PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
 fi
 
+# phpMyAdmin internal virtual host on port 8080
 sudo bash -c "cat > /etc/nginx/sites-available/phpmyadmin.conf" << EOF
 server {
     listen 8080 default_server;
@@ -91,7 +98,47 @@ server {
 }
 EOF
 
+# Main edge proxy on port 80 (serving both cPanel Jupiter and /phpmyadmin/)
+sudo bash -c "cat > /etc/nginx/sites-available/default" << 'EOF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    client_max_body_size 128M;
+
+    # Redirect /phpmyadmin to /phpmyadmin/
+    location = /phpmyadmin {
+        return 301 /phpmyadmin/;
+    }
+
+    # phpMyAdmin reverse proxy
+    location /phpmyadmin/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Prefix /phpmyadmin;
+        proxy_redirect / /phpmyadmin/;
+    }
+
+    # cPanel Jupiter Dashboard (Vite App)
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
 sudo ln -sf /etc/nginx/sites-available/phpmyadmin.conf /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
 sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload)
 
 # 5. Clone or update repository
