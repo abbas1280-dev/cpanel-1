@@ -564,7 +564,14 @@ export async function syncLiveNginxVHost(mainDomain: string, domain: string, rel
 server {
     listen 80;
     listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${domain} www.${domain};
+
+    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
+    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     root ${fullDocRoot};
     index index.php index.html index.htm;

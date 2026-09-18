@@ -111,18 +111,37 @@ fi
 
 SERIAL=$(date +%Y%m%d01)
 
+# 5.1 Ensure SSL Certificate exists for HTTPS (port 443)
+mkdir -p /etc/ssl/certs /etc/ssl/private
+if [ ! -f /etc/ssl/certs/ssl-cert-snakeoil.pem ] || [ ! -f /etc/ssl/private/ssl-cert-snakeoil.key ]; then
+    echo "[+] Generating self-signed SSL certificate for port 443 HTTPS..."
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /etc/ssl/private/ssl-cert-snakeoil.key \
+        -out /etc/ssl/certs/ssl-cert-snakeoil.pem \
+        -subj "/C=US/ST=Cloud/L=Server/O=HOSTER1280/CN=hoster1280.shop" 2>/dev/null || true
+fi
+chmod 640 /etc/ssl/private/ssl-cert-snakeoil.key 2>/dev/null || true
+chmod 644 /etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
+
 # ==============================================================================
 # 6. MASTER PORTAL NGINX CONFIGURATION (hoster1280.shop -> :5173 & phpMyAdmin)
 # ==============================================================================
 # Remove any conflicting customer vhost for hoster1280.shop
 rm -f /etc/nginx/sites-enabled/hoster1280.shop.conf /etc/nginx/sites-available/hoster1280.shop.conf 2>/dev/null || true
 
-echo "[+] Configuring Master Edge Reverse Proxy for HOSTER 1280 Portal..."
+echo "[+] Configuring Master Edge Reverse Proxy for HOSTER 1280 Portal (HTTP & HTTPS)..."
 cat << 'EOF' > /etc/nginx/sites-available/default
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name hoster1280.shop www.hoster1280.shop _;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name hoster1280.shop www.hoster1280.shop cpanel.hoster1280.shop _;
+
+    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
+    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     client_max_body_size 128M;
 
@@ -265,7 +284,14 @@ EOF
 server {
     listen 80;
     listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN} www.${DOMAIN};
+
+    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
+    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     root ${DOCROOT};
     index index.php index.html index.htm;
