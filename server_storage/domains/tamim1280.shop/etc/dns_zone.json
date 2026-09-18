@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789706882704-1",
+    "id": "rec-1789708361098-1",
     "name": "tamim1280.shop",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,7 +9,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789706882704-2",
+    "id": "rec-1789708361098-2",
     "name": "www.tamim1280.shop",
     "type": "CNAME",
     "value": "tamim1280.shop",
@@ -18,7 +18,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789706882704-3",
+    "id": "rec-1789708361098-3",
     "name": "tamim1280.shop",
     "type": "NS",
     "value": "ns1.hoster1280.shop",
@@ -27,7 +27,7 @@
     "managedBy": "hoster1280.shop DNS"
   },
   {
-    "id": "rec-1789706882704-4",
+    "id": "rec-1789708361098-4",
     "name": "tamim1280.shop",
     "type": "NS",
     "value": "ns2.hoster1280.shop",

@@ -292,6 +292,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     throw new Exception('Could not create archive');
                 }
                 exit;
+
+            case 'terminate_service':
+                $domain = $_POST['domain'] ?? '';
+                if (!$domain) throw new Exception('Domain is required for termination');
+                require_once __DIR__ . '/server/ServiceTerminationController.php';
+                $controller = new ServiceTerminationController();
+                $result = $controller->terminate($domain);
+                echo json_encode($result);
+                exit;
         }
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);

@@ -1366,6 +1366,77 @@ export function serverApiPlugin(): Plugin {
         }
 
         // =========================================================================
+        // 3.5. POST /api/services/terminate (Safe Service Deletion Engine)
+        // =========================================================================
+        if ((url === '/api/services/terminate' || url === '/api/services/delete') && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+
+            if (!domain) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain parameter is required for termination.' }));
+              return;
+            }
+
+            const cleanPrefix = domain.replace(/[^a-z0-9]/g, '').slice(0, 8);
+            const tenantUsername = `u_${cleanPrefix}`;
+
+            let linuxOutput = '';
+            // If on Linux, execute scripts/terminate_service.sh
+            if (process.platform === 'linux') {
+              try {
+                const scriptPath = path.resolve(process.cwd(), 'scripts', 'terminate_service.sh');
+                if (fs.existsSync(scriptPath)) {
+                  const { stdout, stderr } = await execPromise(
+                    `sudo /bin/bash "${scriptPath}" "${domain}" "${tenantUsername}" "${STORAGE_ROOT}"`,
+                    { timeout: 35000 }
+                  );
+                  linuxOutput = stdout || stderr;
+                }
+              } catch (shErr: any) {
+                console.warn('Linux termination script execution warning:', shErr.message);
+                linuxOutput = shErr.message;
+              }
+            }
+
+            // Remove domain storage directory
+            const domainStorageDir = path.join(STORAGE_ROOT, 'domains', domain);
+            if (fs.existsSync(domainStorageDir)) {
+              try {
+                fs.rmSync(domainStorageDir, { recursive: true, force: true });
+              } catch (rmErr) {}
+            }
+
+            // Remove from services.json
+            let updatedServices: any[] = [];
+            if (fs.existsSync(SERVICES_FILE)) {
+              try {
+                const services = JSON.parse(fs.readFileSync(SERVICES_FILE, 'utf-8'));
+                if (Array.isArray(services)) {
+                  updatedServices = services.filter((s: any) => (s.domain || '').toLowerCase() !== domain);
+                  fs.writeFileSync(SERVICES_FILE, JSON.stringify(updatedServices, null, 2));
+                }
+              } catch (e) {}
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              message: `Service for ${domain} has been permanently terminated and all server resources purged.`,
+              domain,
+              tenantUsername,
+              services: updatedServices,
+              linuxOutput
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
         // 4. FILE MANAGER: LIST DIRECTORY CONTENTS (/api/filemanager/list)
         // =========================================================================
         if (url.startsWith('/api/filemanager/list') && request.method === 'GET') {

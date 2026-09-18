@@ -1,8 +1,9 @@
-# Sudoers permissions for hoster1280.shop control panel automated provisioning
+# Sudoers permissions for hoster1280.shop control panel automated provisioning & termination
 # Place in: /etc/sudoers.d/cpanel-provisioning
 # Permissions: 0440 (sudo chmod 0440 /etc/sudoers.d/cpanel-provisioning)
 
 ubuntu ALL=(ALL) NOPASSWD: /bin/bash /home/ubuntu/cpanel-1/scripts/provision_tenant.sh *
+ubuntu ALL=(ALL) NOPASSWD: /bin/bash /home/ubuntu/cpanel-1/scripts/terminate_service.sh *
 ubuntu ALL=(ALL) NOPASSWD: /bin/bash /home/ubuntu/cpanel-1/scripts/setup_nameservers.sh *
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/certbot *
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx

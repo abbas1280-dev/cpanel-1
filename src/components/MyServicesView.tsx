@@ -30,7 +30,10 @@ import {
   Activity,
   Calendar,
   KeyRound,
-  Eye
+  Eye,
+  Trash2,
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
 import { ServiceItem, DomainItem, ServerMetrics } from '../types';
 import { ProductDetailsView } from './ProductDetailsView';
@@ -39,6 +42,7 @@ interface MyServicesViewProps {
   services: ServiceItem[];
   domains: DomainItem[];
   onAddService: (newService: ServiceItem) => void;
+  onDeleteService?: (serviceIdOrDomain: string) => void;
   onOpenFullCpanel?: (newService: ServiceItem) => void;
   serverMetrics?: ServerMetrics | null;
 }
@@ -49,9 +53,42 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   services,
   domains,
   onAddService,
+  onDeleteService,
   onOpenFullCpanel,
   serverMetrics
 }) => {
+  // Local services synchronization for instantaneous UI updates
+  const [localServices, setLocalServices] = useState<ServiceItem[]>(services);
+
+  React.useEffect(() => {
+    setLocalServices(services);
+  }, [services]);
+
+  // Three-dots dropdown state
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  // Safe Deletion Modal State
+  const [serviceToDelete, setServiceToDelete] = useState<ServiceItem | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Change PHP Version Modal State
+  const [serviceToChangePhp, setServiceToChangePhp] = useState<ServiceItem | null>(null);
+  const [selectedPhpVer, setSelectedPhpVer] = useState('8.2');
+  const [isUpdatingPhp, setIsUpdatingPhp] = useState(false);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    const handleDocumentClick = () => {
+      setOpenDropdownId(null);
+    };
+    if (openDropdownId) {
+      document.addEventListener('click', handleDocumentClick);
+      return () => document.removeEventListener('click', handleDocumentClick);
+    }
+  }, [openDropdownId]);
+
   // Navigation: Product Details View State
   const [viewingProductDetails, setViewingProductDetails] = useState<ServiceItem | null>(null);
 
@@ -72,7 +109,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Dynamic public server IP state
-  const [publicServerIp, setPublicServerIp] = useState<string>(serverMetrics?.serverIp || '192.168.0.104');
+  const [publicServerIp, setPublicServerIp] = useState<string>(serverMetrics?.serverIp || '208.72.218.129');
 
   React.useEffect(() => {
     fetch('/api/server/public-ip')
@@ -296,9 +333,73 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
     }
   };
 
+  // Safe Service Deletion Handler
+  const handleExecuteDeletion = async () => {
+    if (!serviceToDelete || deleteConfirmText.trim() !== 'CONFIRM') return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch('/api/services/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: serviceToDelete.domain })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Server failed to terminate service.');
+      }
+
+      // Update local state immediately
+      setLocalServices((prev) =>
+        prev.filter((s) => s.domain !== serviceToDelete.domain && s.id !== serviceToDelete.id)
+      );
+
+      // Notify parent if available
+      if (onDeleteService) {
+        onDeleteService(serviceToDelete.id);
+      }
+
+      setServiceToDelete(null);
+      setDeleteConfirmText('');
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to terminate service.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Change PHP Version Handler
+  const handleExecuteChangePhp = async () => {
+    if (!serviceToChangePhp) return;
+    setIsUpdatingPhp(true);
+    try {
+      await fetch('/api/services/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: serviceToChangePhp.domain,
+          phpVersion: selectedPhpVer,
+          allowUpdate: true
+        })
+      });
+
+      setLocalServices((prev) =>
+        prev.map((s) => (s.id === serviceToChangePhp.id ? { ...s, phpVersion: selectedPhpVer } : s))
+      );
+      setServiceToChangePhp(null);
+    } catch (e) {
+      setServiceToChangePhp(null);
+    } finally {
+      setIsUpdatingPhp(false);
+    }
+  };
+
   // Filtered services list
   const filteredServices = useMemo(() => {
-    return services.filter((srv) => {
+    return localServices.filter((srv) => {
       const matchesSearch =
         srv.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
         srv.product.toLowerCase().includes(searchTerm.toLowerCase());
@@ -306,7 +407,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
         statusFilter === 'All Entries' || srv.status.toLowerCase() === statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     });
-  }, [services, searchTerm, statusFilter]);
+  }, [localServices, searchTerm, statusFilter]);
 
   const renderCpanelModal = () => {
     if (!activeCpanelModal) return null;
@@ -532,44 +633,45 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
         </div>
       )}
 
-      {/* Shared Server Resource Pool Information Card */}
+      {/* Sleek Cloud Infrastructure Pool Metric Header */}
       {!showDomainForm && (
-        <div className="bg-gradient-to-r from-[#11074a] via-[#1a1063] to-[#251582] text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-indigo-950 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-blue-300 shrink-0 border border-white/10">
-              <Cpu className="w-6 h-6" />
+        <div className="bg-gradient-to-r from-[#11074a] via-[#1a1063] to-[#251582] text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-indigo-950 flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
+          {/* Left Side: Minimalist icon + Title + Active Status Badge */}
+          <div className="flex items-center gap-3.5 w-full md:w-auto">
+            <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-blue-300 shrink-0 border border-white/10 shadow-inner">
+              <Server className="w-5 h-5 text-sky-300" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight">Shared Host Server Resource Pool</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Host Pool Active
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-base sm:text-lg font-bold tracking-tight text-white">
+                  Cloud Infrastructure Pool
+                </h2>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  HOST POOL ACTIVE
                 </span>
               </div>
-              <p className="text-xs text-indigo-200/80 mt-0.5">
-                প্রতিটি ডোমেইনের জন্য কৃত্রিম সীমা নেই—হোস্ট সার্ভারের মোট রিসোর্স ({serverMetrics?.disk.totalGB || '476.3'} GB NVMe Storage, {serverMetrics?.cpu.cores || 12} Cores {serverMetrics?.cpu.model || 'AMD Ryzen'}, IP: {serverMetrics?.serverIp || '192.168.0.104'}) সকল ডোমেইনের মাঝে গতিশীলভাবে ভাগ হয়ে কাজ করে।
-              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-medium text-indigo-200/90 shrink-0 bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
-            <div>
-              <span className="block text-[10px] text-indigo-300/70 uppercase font-bold">Total Storage</span>
-              <span className="font-bold text-white text-sm">{serverMetrics?.disk.totalGB || '476.3'} GB</span>
+          {/* Right Side: Modern Stat Cards / Pills */}
+          <div className="flex items-center gap-3 sm:gap-4 text-xs font-medium text-indigo-200/90 shrink-0 w-full md:w-auto justify-between md:justify-end">
+            <div className="bg-white/5 hover:bg-white/10 transition-colors px-4 py-2 rounded-xl border border-white/10 backdrop-blur-md flex-1 md:flex-initial text-left">
+              <span className="block text-[10px] text-indigo-300/80 uppercase font-bold tracking-wider">Total NVMe Storage</span>
+              <span className="font-bold text-white text-sm sm:text-base">{serverMetrics?.disk.totalGB || '500.0'} GB</span>
             </div>
-            <div className="w-px h-7 bg-white/10"></div>
-            <div>
-              <span className="block text-[10px] text-indigo-300/70 uppercase font-bold">Server IP</span>
-              <span className="font-bold text-sky-400 text-sm font-mono">{serverMetrics?.serverIp || '192.168.0.104'}</span>
+            <div className="bg-white/5 hover:bg-white/10 transition-colors px-4 py-2 rounded-xl border border-white/10 backdrop-blur-md flex-1 md:flex-initial text-left">
+              <span className="block text-[10px] text-indigo-300/80 uppercase font-bold tracking-wider">Server IP</span>
+              <span className="font-bold text-sky-400 text-sm sm:text-base font-mono">{serverMetrics?.serverIp || publicServerIp || '208.72.218.129'}</span>
             </div>
-            <div className="w-px h-7 bg-white/10"></div>
-            <div>
-              <span className="block text-[10px] text-indigo-300/70 uppercase font-bold">Connected</span>
-              <span className="font-bold text-emerald-400 text-sm">{services.length} Domains</span>
+            <div className="bg-white/5 hover:bg-white/10 transition-colors px-4 py-2 rounded-xl border border-white/10 backdrop-blur-md flex-1 md:flex-initial text-left">
+              <span className="block text-[10px] text-indigo-300/80 uppercase font-bold tracking-wider">Connected Domains</span>
+              <span className="font-bold text-emerald-400 text-sm sm:text-base">{localServices.length} Domains</span>
             </div>
           </div>
         </div>
       )}
+
 
       {/* ========================================================================= */}
       {/* CHOOSE A DOMAIN FORM (MATCHING PREVIOUS USER SCREENSHOT) */}
@@ -1145,13 +1247,68 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                                 <ExternalLink className="w-3.5 h-3.5" />
                                 <span>Login to cPanel</span>
                               </button>
-                              <button
-                                onClick={() => setSelectedServiceDetail(srv)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                                title="View Domain Details & Actions"
-                              >
-                                <MoreHorizontal className="w-5 h-5" />
-                              </button>
+                              {/* Three-Dots Action Menu Dropdown */}
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenDropdownId(openDropdownId === srv.id ? null : srv.id);
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    openDropdownId === srv.id
+                                      ? 'text-indigo-600 bg-indigo-50 ring-2 ring-indigo-500/20'
+                                      : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                  }`}
+                                  title="Service Actions"
+                                >
+                                  <MoreHorizontal className="w-5 h-5" />
+                                </button>
+
+                                {openDropdownId === srv.id && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-2xl shadow-2xl border border-slate-200/90 py-2 z-50 text-left animate-in fade-in zoom-in-95 duration-100"
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        setSelectedServiceDetail(srv);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                                    >
+                                      <Info className="w-4 h-4 text-indigo-500" />
+                                      <span>View Details</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        setServiceToChangePhp(srv);
+                                        setSelectedPhpVer(srv.phpVersion || '8.2');
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                                    >
+                                      <Settings className="w-4 h-4 text-slate-500" />
+                                      <span>Change PHP Version</span>
+                                    </button>
+
+                                    <div className="my-1.5 border-t border-slate-100" />
+
+                                    <button
+                                      onClick={() => {
+                                        setOpenDropdownId(null);
+                                        setServiceToDelete(srv);
+                                        setDeleteConfirmText('');
+                                        setDeleteError(null);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-rose-500" />
+                                      <span>Delete / Terminate Service</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -1314,6 +1471,186 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* SAFE SERVICE DELETION MODAL (REQUIRES TYPING "CONFIRM") */}
+      {/* ========================================================================= */}
+      {serviceToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-rose-100 animate-in fade-in zoom-in-95 duration-150">
+            {/* Warning Alert Icon & Header */}
+            <div className="flex items-start gap-4 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-sm">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight leading-snug">
+                  Are you absolutely sure you want to delete this service?
+                </h3>
+                <span className="inline-block mt-1 text-[10px] font-extrabold uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                  Permanent Server Purge
+                </span>
+              </div>
+            </div>
+
+            {/* Description matching prompt */}
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-4">
+              This action is irreversible. It will permanently delete{' '}
+              <strong className="text-slate-900 font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                {serviceToDelete.domain}
+              </strong>
+              , all associated files, MySQL databases, DNS records, and SSL certificates.
+            </p>
+
+            {/* Target Service Information Card */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 mb-5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Domain Name:</span>
+                <span className="font-mono font-bold text-slate-800">{serviceToDelete.domain}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Service ID:</span>
+                <span className="font-mono text-slate-600">{serviceToDelete.id}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Webroot Path:</span>
+                <span className="font-mono text-slate-600">/home/u_{serviceToDelete.domain.replace(/[^a-z0-9]/gi, '').slice(0, 8)}/public_html</span>
+              </div>
+            </div>
+
+            {/* Validation Input Field */}
+            <div className="space-y-2 mb-6">
+              <label className="block text-xs font-bold text-slate-700">
+                To confirm, type <span className="font-mono font-extrabold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">CONFIRM</span> below:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type CONFIRM to proceed"
+                disabled={isDeleting}
+                className="w-full px-4 py-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white text-slate-900 placeholder:text-slate-400 placeholder:font-sans transition-all"
+                autoFocus
+              />
+              {deleteError && (
+                <div className="text-xs font-semibold text-rose-600 flex items-center gap-1.5 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setServiceToDelete(null);
+                  setDeleteConfirmText('');
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteDeletion}
+                disabled={deleteConfirmText.trim() !== 'CONFIRM' || isDeleting}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md ${
+                  deleteConfirmText.trim() === 'CONFIRM' && !isDeleting
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/30 active:scale-95 cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none'
+                }`}
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Terminating Service & Purging Server...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Permanently Delete Service</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* CHANGE PHP VERSION MODAL */}
+      {/* ========================================================================= */}
+      {serviceToChangePhp && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Change PHP Version</h3>
+                  <p className="text-xs text-slate-500 font-medium">{serviceToChangePhp.domain}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setServiceToChangePhp(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Select Dedicated PHP-FPM Version:
+                </label>
+                <select
+                  value={selectedPhpVer}
+                  onChange={(e) => setSelectedPhpVer(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="7.4">PHP 7.4 (Legacy Compatibility)</option>
+                  <option value="8.0">PHP 8.0</option>
+                  <option value="8.1">PHP 8.1</option>
+                  <option value="8.2">PHP 8.2 (Recommended Default)</option>
+                  <option value="8.3">PHP 8.3 (Latest High Performance)</option>
+                </select>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-900 leading-relaxed">
+                Switching PHP versions instantly rebinds the tenant's isolated FastCGI socket and reloads PHP-FPM with zero downtime.
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setServiceToChangePhp(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteChangePhp}
+                  disabled={isUpdatingPhp}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
+                >
+                  {isUpdatingPhp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+                  <span>{isUpdatingPhp ? 'Applying...' : 'Apply PHP Version'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Simulated Interactive cPanel Modal */}
       {renderCpanelModal()}

@@ -215,6 +215,29 @@ export function App() {
     showToast(`Service "${provisionedService.product}" provisioned!`);
   };
 
+  const handleDeleteService = async (serviceIdOrDomain: string) => {
+    const target = services.find(s => s.id === serviceIdOrDomain || s.domain === serviceIdOrDomain);
+    const domain = target ? target.domain : serviceIdOrDomain;
+
+    try {
+      const res = await fetch('/api/services/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      if (res.ok) {
+        setServices(prev => prev.filter(s => s.domain !== domain && s.id !== serviceIdOrDomain));
+        showToast(`Service for "${domain}" permanently terminated and server resources purged!`);
+        return;
+      }
+    } catch (err) {
+      console.warn('Backend terminate error:', err);
+    }
+
+    setServices(prev => prev.filter(s => s.domain !== domain && s.id !== serviceIdOrDomain));
+    showToast(`Service for "${domain}" deleted.`);
+  };
+
   const handleAddDomain = (newDomain: DomainItem) => {
     setDomains(prev => [newDomain, ...prev]);
     showToast(`Domain "${newDomain.domainName}" registered successfully!`);
@@ -376,6 +399,7 @@ export function App() {
               services={services}
               domains={domains}
               onAddService={handleAddService}
+              onDeleteService={handleDeleteService}
               serverMetrics={serverMetrics}
               onOpenFullCpanel={(srv) => {
                 setCpanelTargetService(srv);

@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789706882718-1",
+    "id": "rec-1789708361111-1",
     "name": "sitechai-cloud.net",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,7 +9,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789706882718-2",
+    "id": "rec-1789708361111-2",
     "name": "www.sitechai-cloud.net",
     "type": "CNAME",
     "value": "sitechai-cloud.net",
@@ -18,7 +18,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789706882718-3",
+    "id": "rec-1789708361111-3",
     "name": "sitechai-cloud.net",
     "type": "NS",
     "value": "ns1.hoster1280.shop",
@@ -27,7 +27,7 @@
     "managedBy": "hoster1280.shop DNS"
   },
   {
-    "id": "rec-1789706882718-4",
+    "id": "rec-1789708361111-4",
     "name": "sitechai-cloud.net",
     "type": "NS",
     "value": "ns2.hoster1280.shop",

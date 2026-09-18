@@ -306,4 +306,14 @@ HTML;
             'message' => 'Simulated SSL certificate active (256-bit TLS).'
         ];
     }
+
+    /**
+     * Terminate domain service and purge all server resources
+     */
+    public function terminateDomain(string $domain): array
+    {
+        require_once __DIR__ . '/ServiceTerminationController.php';
+        $controller = new ServiceTerminationController($this->storageRoot);
+        return $controller->terminate($domain);
+    }
 }
