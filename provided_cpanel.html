@@ -1534,7 +1534,7 @@
 
                             <div class="category-content">
 
-                                <div class="tool-item" onclick="switchView('view-filemanager')">
+                                <div class="tool-item" onclick="openFileManager()">
 
                                     <div class="tool-icon-wrapper">
 
@@ -2673,6 +2673,14 @@
 
 
         // 1. View Switcher SPA
+
+        function openFileManager() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'OPEN_FILEMANAGER', domain: currentDomain }, '*');
+                return;
+            }
+            window.location.href = '/?tab=filemanager&domain=' + encodeURIComponent(currentDomain);
+        }
 
         function switchView(viewId) {
 

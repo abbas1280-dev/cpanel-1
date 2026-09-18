@@ -9,20 +9,44 @@ session_start();
 // ==========================================
 // ১. কনফিগারেশন ও রুট পাথ সেটআপ
 // ==========================================
-$user_path = $_SESSION['user_home_dir'] 
-    ?? (isset($_SESSION['username']) ? '/home/' . $_SESSION['username'] . '/public_html' : null);
+$domain_param = isset($_GET['domain']) ? preg_replace('/[^a-zA-Z0-9.-]/', '', $_GET['domain']) : (isset($_SESSION['domain']) ? preg_replace('/[^a-zA-Z0-9.-]/', '', $_SESSION['domain']) : null);
 
-$BASE_DIR = ($user_path && file_exists($user_path)) 
-    ? realpath($user_path) 
-    : realpath(__DIR__ . '/storage');
+$candidate_paths = [
+    $_SESSION['user_home_dir'] ?? null,
+    $domain_param ? __DIR__ . '/server_storage/domains/' . $domain_param . '/public_html' : null,
+    $domain_param ? __DIR__ . '/server_storage/domains/' . $domain_param : null,
+    isset($_SESSION['username']) ? '/home/' . $_SESSION['username'] . '/public_html' : null,
+    isset($_SESSION['username']) ? '/home/' . $_SESSION['username'] : null,
+];
+
+// Fallback to existing domain directories in server_storage if domain not explicitly given
+$storage_domains = @glob(__DIR__ . '/server_storage/domains/*', GLOB_ONLYDIR);
+if (!empty($storage_domains)) {
+    foreach ($storage_domains as $d_path) {
+        $candidate_paths[] = $d_path . '/public_html';
+        $candidate_paths[] = $d_path;
+    }
+}
+$candidate_paths[] = __DIR__ . '/storage';
+
+$BASE_DIR = null;
+foreach ($candidate_paths as $p) {
+    if ($p && file_exists($p)) {
+        $real = realpath($p);
+        if ($real) {
+            $BASE_DIR = $real;
+            break;
+        }
+    }
+}
 
 if (!$BASE_DIR) {
-    $fallback = $user_path ?: (__DIR__ . '/storage');
+    $fallback = __DIR__ . '/storage';
     @mkdir($fallback, 0755, true);
     $BASE_DIR = realpath($fallback);
 }
 
-$DASHBOARD_URL = $_SESSION['dashboard_url'] ?? "../dashboard"; // Return link to cPanel dashboard
+$DASHBOARD_URL = $_SESSION['dashboard_url'] ?? ("/cpanel.html" . ($domain_param ? "?domain=" . urlencode($domain_param) : "")); // Return link to cPanel dashboard
 
 // সিকিউর পাথ রেজোলিউশন (Path Traversal / Jail Protection)
 function get_safe_path($rel_path = '') {
@@ -781,6 +805,22 @@ if (isset($_GET['download'])) {
             const relPath = currentPath ? `${currentPath}/${name}` : name;
             const res = await apiRequest({ action: 'rename', path: relPath, new_name: newName });
             if (res && res.success) loadDirectory(currentPath);
+        }
+
+        async function openCompressModal() {
+            if (!selectedItems.size) return;
+            const zipName = prompt('Enter zip archive name (e.g. archive.zip):', 'archive.zip');
+            if (!zipName) return;
+            const items = Array.from(selectedItems);
+            const res = await apiRequest({
+                action: 'compress',
+                path: currentPath,
+                items: JSON.stringify(items),
+                zip_name: zipName
+            });
+            if (res && res.success) {
+                loadDirectory(currentPath);
+            }
         }
 
         async function extractZip(name) {

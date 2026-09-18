@@ -1534,7 +1534,7 @@
 
                             <div class="category-content">
 
-                                <div class="tool-item" onclick="switchView('view-filemanager')">
+                                <div class="tool-item" onclick="openFileManager()">
 
                                     <div class="tool-icon-wrapper">
 
@@ -1885,178 +1885,27 @@
     <!-- ================= VIEW 2: FILE MANAGER ================= -->
 
     <div id="view-filemanager" class="view-container">
-
-        <div class="fm-container">
-
-            <!-- Top Bar -->
-
-            <div class="fm-header">
-
-                <div class="fm-logo">
-
-                    <i class="fa-solid fa-circle-nodes"></i>
-
-                    <span>File Manager</span>
-
-                </div>
-
-                <div class="fm-top-actions">
-
-                    <button class="btn-back-cpanel" onclick="switchView('view-dashboard')"><i class="fa-solid fa-arrow-left"></i> Back to cPanel</button>
-
-                    <span style="font-size: 12px;">Search</span>
-
-                    <select class="cp-input" style="height: 28px; padding: 2px 8px; font-size: 12px;"><option>All Your Files</option></select>
-
-                    <input type="text" class="cp-input" style="height: 28px; width: 140px; font-size: 12px;">
-
-                    <button class="cp-btn-primary" style="padding: 3px 10px; font-size: 12px;">Go</button>
-
-                    <button class="cp-btn-default" style="padding: 3px 10px; font-size: 12px;"><i class="fa-solid fa-gear"></i> Settings</button>
-
-                </div>
-
+        <div style="background: white; border-radius: 12px; margin: 24px; padding: 48px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="width: 80px; height: 80px; border-radius: 20px; background: rgba(255,108,44,0.1); display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                <i class="fa-regular fa-folder-open" style="font-size: 38px; color: #ff6c2c;"></i>
             </div>
-
-
-
-            <!-- Toolbar -->
-
-            <div class="fm-toolbar">
-
-                <button class="fm-tool-btn" onclick="addNewItem('file')"><i class="fa-solid fa-plus text-primary"></i> File</button>
-
-                <button class="fm-tool-btn" onclick="addNewItem('folder')"><i class="fa-solid fa-folder-plus text-primary"></i> Folder</button>
-
-                <button class="fm-tool-btn"><i class="fa-regular fa-copy"></i> Copy</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-arrows-up-down-left-right"></i> Move</button>
-
-                <button class="fm-tool-btn" onclick="alert('Upload Dialog Opened')"><i class="fa-solid fa-upload"></i> Upload</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-download"></i> Download</button>
-
-                <button class="fm-tool-btn" onclick="deleteSelectedFile()"><i class="fa-solid fa-xmark text-danger"></i> Delete</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-rotate-left"></i> Restore</button>
-
-                <button class="fm-tool-btn" onclick="renameSelectedFile()"><i class="fa-solid fa-signature"></i> Rename</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-code"></i> HTML Editor</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-key"></i> Permissions</button>
-
-                <button class="fm-tool-btn"><i class="fa-regular fa-eye"></i> View</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-file-zipper"></i> Extract</button>
-
-                <button class="fm-tool-btn"><i class="fa-solid fa-file-zipper"></i> Compress</button>
-
+            <h2 style="font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">cPanel Web File Manager</h2>
+            <p style="color: #64748b; max-width: 520px; margin-bottom: 28px; font-size: 14px; line-height: 1.6;">
+                Manage files, upload folders and archives, edit source code with Monaco Editor, change permissions (0755/0644), compress/extract zips, and restore deleted files.
+            </p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                <button onclick="openFileManager()" class="cp-btn-primary" style="padding: 11px 26px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; cursor: pointer;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open cPanel File Manager
+                </button>
+                <a href="/index.php" target="_blank" class="cp-btn-default" style="padding: 11px 22px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; text-decoration: none; color: #334155;">
+                    <i class="fa-brands fa-php" style="color: #4f46e5;"></i> Standalone File Manager
+                </a>
+                <button onclick="switchView('view-dashboard')" class="cp-btn-default" style="padding: 11px 22px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; cursor: pointer;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to cPanel
+                </button>
             </div>
-
-
-
-            <!-- Path Bar -->
-
-            <div class="fm-nav-bar">
-
-                <i class="fa-solid fa-house" style="color: #2563eb;"></i>
-
-                <input type="text" id="fmPathInput" class="cp-input" value="" style="flex:1; height: 26px; font-size: 12px;" onkeydown="if(event.key==='Enter') navigateToFmPath()">
-
-                <button class="cp-btn-default" style="padding: 2px 10px; font-size: 12px;" onclick="navigateToFmPath()">Go</button>
-
-            </div>
-
-
-
-            <!-- Body -->
-
-            <div class="fm-body">
-
-                <!-- Directory Tree -->
-
-                <div class="fm-tree-sidebar">
-
-                    <button class="cp-btn-default" style="width: 100%; margin-bottom: 8px; font-size: 11px;">Collapse All</button>
-
-                    <div class="tree-item active" onclick="reloadFiles('')" style="cursor:pointer;"><i class="fa-solid fa-house-chimney"></i> <b id="fmTreeHomeLabel">(home)</b></div>
-
-                    <div id="fmTreeSubfolders" style="padding-left: 14px;">
-                        <div class="tree-item" onclick="reloadFiles('public_html')" style="color: #2563eb; font-weight: bold; cursor:pointer;"><i class="fa-solid fa-globe"></i> public_html</div>
-                        <div class="tree-item" onclick="reloadFiles('ssl')" style="cursor:pointer;"><i class="fa-solid fa-folder"></i> ssl</div>
-                        <div class="tree-item" onclick="reloadFiles('tmp')" style="cursor:pointer;"><i class="fa-solid fa-folder"></i> tmp</div>
-                        <div class="tree-item" onclick="reloadFiles('etc')" style="cursor:pointer;"><i class="fa-solid fa-folder"></i> etc</div>
-                        <div class="tree-item" onclick="reloadFiles('mail')" style="cursor:pointer;"><i class="fa-solid fa-folder"></i> mail</div>
-                    </div>
-
-                </div>
-
-
-
-                <!-- Files Table -->
-
-                <div class="fm-file-view">
-
-                    <div class="fm-subnav">
-
-                        <a onclick="reloadFiles('')" style="cursor:pointer;"><i class="fa-solid fa-house"></i> Home</a>
-
-                        <a onclick="navigateFmUp()" style="cursor:pointer;"><i class="fa-solid fa-arrow-up"></i> Up One Level</a>
-
-                        <a onclick="reloadFiles(currentPath)" style="cursor:pointer;"><i class="fa-solid fa-rotate"></i> Reload</a>
-
-                        <a onclick="selectAllFiles(true)"><i class="fa-regular fa-square-check"></i> Select All</a>
-
-                        <a onclick="selectAllFiles(false)"><i class="fa-regular fa-square"></i> Unselect All</a>
-
-                        <a><i class="fa-solid fa-trash-can"></i> View Trash</a>
-
-                    </div>
-
-                    <div class="fm-table-wrapper">
-
-                        <table class="fm-table" id="fmTable">
-
-                            <thead>
-
-                                <tr>
-
-                                    <th style="width: 40%;">Name</th>
-
-                                    <th>Size</th>
-
-                                    <th>Last Modified</th>
-
-                                    <th>Type</th>
-
-                                    <th>Permissions</th>
-
-                                </tr>
-
-                            </thead>
-
-                            <tbody id="fmTableBody">
-
-                                <!-- JS Injected Files -->
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
-                </div>
-
-            </div>
-
         </div>
-
     </div>
-
-
 
     <!-- phpMyAdmin launches in new tab via SSO -->
 
@@ -2534,9 +2383,21 @@
         }
 
         // 2. View Switcher SPA
+        function openFileManager() {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'OPEN_FILEMANAGER', domain: currentDomain }, '*');
+                return;
+            }
+            window.location.href = '/?tab=filemanager&domain=' + encodeURIComponent(currentDomain);
+        }
+
         function switchView(viewId) {
             if (viewId === 'view-pma') {
                 launchPmaSSO();
+                return;
+            }
+            if (viewId === 'view-filemanager') {
+                openFileManager();
                 return;
             }
             document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active-view'));

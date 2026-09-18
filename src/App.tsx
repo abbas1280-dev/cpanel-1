@@ -102,6 +102,37 @@ export function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handle URL query parameters for direct tab navigation (e.g. ?tab=filemanager&domain=...)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as ActiveTab;
+      const domainParam = params.get('domain');
+      if (tabParam && ['dashboard', 'services', 'domains', 'profile', 'cpanel', 'filemanager', 'cpanel_domains', 'cpanel_databases'].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+      if (domainParam) {
+        const found = services.find(s => s.domain === domainParam);
+        if (found) {
+          setCpanelTargetService(found);
+        } else {
+          setCpanelTargetService({
+            id: 'srv-' + domainParam,
+            product: 'Premium cPanel Hosting',
+            domain: domainParam,
+            pricing: '$9.99/mo',
+            billingCycle: 'Monthly',
+            nextDueDate: '2027-01-01',
+            status: 'Active',
+            serverIp: '127.0.0.1'
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse URL query params:', e);
+    }
+  }, [services]);
+
   // Fetch real services and domains list from backend on mount
   useEffect(() => {
     const fetchServices = async () => {
