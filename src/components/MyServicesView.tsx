@@ -101,9 +101,9 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   const [statusFilter, setStatusFilter] = useState('All Entries');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
 
-  // Domain input form states
-  const [domainNamePart, setDomainNamePart] = useState('example');
-  const [tldPart, setTldPart] = useState('com');
+  // Domain input form states (empty by default, placeholder shows example / com)
+  const [domainNamePart, setDomainNamePart] = useState('');
+  const [tldPart, setTldPart] = useState('');
   const phpVersion = '8.2';
   const selectedQuota = 'Unlimited Shared Pool';
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -203,21 +203,34 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   const handleUseDomain = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Support user entering full domain "turkyhub.com" or just "turkyhub"
+    // Support user entering full domain "turkyhub.com" or just name "turkyhub" and extension "com"
     let rawName = domainNamePart.trim().toLowerCase();
-    let rawTld = tldPart.trim().replace(/^\./, '').toLowerCase() || 'com';
+    let rawTld = tldPart.trim().replace(/^\.+/, '').toLowerCase();
 
+    if (!rawName) {
+      setValidationError('Please enter a domain name.');
+      return;
+    }
+
+    // If user entered dot in domain name field (e.g. "turkyhub.com" or "site.shop")
     if (rawName.includes('.')) {
       const dotIndex = rawName.indexOf('.');
-      rawTld = rawName.slice(dotIndex + 1);
+      if (!rawTld) {
+        rawTld = rawName.slice(dotIndex + 1);
+      }
       rawName = rawName.slice(0, dotIndex);
     }
 
-    const cleanDomain = `${rawName.replace(/\./g, '')}.${rawTld.replace(/\./g, '')}`;
+    // Default TLD to com if left empty
+    if (!rawTld) {
+      rawTld = 'com';
+    }
+
+    const cleanDomain = `${rawName}.${rawTld}`;
     
     // Domain validation
     const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
-    if (!cleanDomain || !domainRegex.test(cleanDomain)) {
+    if (!domainRegex.test(cleanDomain)) {
       setValidationError('Please enter a valid domain format (e.g. clientdomain.com).');
       return;
     }
@@ -704,7 +717,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                 Choose a Domain...
               </h1>
               <p className="text-sm text-slate-500 mt-1 font-medium">
-                Selected Product: <span className="font-bold text-slate-700">Shared Cloud Hosting (Dynamic Resource Pool)</span>
+                Selected Product: <span className="font-bold text-slate-700">Web Hosting - 5 GB Hosting</span>
               </p>
             </div>
 
@@ -741,109 +754,45 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                 />
                 <span>I will use my existing domain and update my nameservers</span>
               </label>
-
-              {domainOption === 'existing' && domains.length > 0 && (
-                <div className="pt-2 pl-7 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500">Quick select existing domain:</span>
-                  {domains.map((dom) => (
-                    <button
-                      key={dom.id}
-                      type="button"
-                      onClick={() => handleSelectExistingDomain(dom.domainName)}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors"
-                    >
-                      {dom.domainName}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
-            <div className="bg-[#11074a] p-6 sm:p-8">
-              <form onSubmit={handleUseDomain} className="max-w-4xl mx-auto space-y-4">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3.5">
-                  {/* Wide Responsive Domain Input */}
-                  <div className="flex-1 min-w-0">
-                    <label className="text-xs font-bold text-indigo-200 block mb-1.5 flex items-center justify-between">
-                      <span>Domain Name</span>
-                      <span className="text-[11px] text-indigo-300/80 font-normal">e.g. turkyhub or mybrand</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Globe className="w-4 h-4 text-indigo-400" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={domainNamePart}
-                        onChange={(e) => {
-                          setDomainNamePart(e.target.value);
-                          setValidationError(null);
-                        }}
-                        placeholder="Enter domain name (e.g. turkyhub)"
-                        className="w-full pl-10 pr-4 py-3 bg-white text-slate-900 font-semibold rounded-xl text-sm sm:text-base border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 shadow-sm placeholder:text-slate-400 placeholder:font-normal transition-all"
-                      />
-                    </div>
-                  </div>
+            <div className="bg-[#181196] p-8 sm:p-10">
+              <form onSubmit={handleUseDomain} className="max-w-4xl mx-auto space-y-3">
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <input
+                    type="text"
+                    required
+                    value={domainNamePart}
+                    onChange={(e) => {
+                      setDomainNamePart(e.target.value);
+                      setValidationError(null);
+                    }}
+                    placeholder="example"
+                    className="w-full sm:flex-1 h-12 px-4 bg-white text-slate-800 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400 border-0 shadow-sm"
+                  />
 
-                  {/* Clean TLD Dropdown / Extension Selector */}
-                  <div className="w-full sm:w-44 shrink-0">
-                    <label className="text-xs font-bold text-indigo-200 block mb-1.5">
-                      Extension (TLD)
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={tldPart}
-                        onChange={(e) => {
-                          setTldPart(e.target.value);
-                          setValidationError(null);
-                        }}
-                        className="w-full px-4 py-3 bg-white text-slate-900 font-bold rounded-xl text-sm sm:text-base border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 shadow-sm cursor-pointer transition-all appearance-none pr-9"
-                      >
-                        <option value="com">.com</option>
-                        <option value="shop">.shop</option>
-                        <option value="net">.net</option>
-                        <option value="org">.org</option>
-                        <option value="xyz">.xyz</option>
-                        <option value="io">.io</option>
-                        <option value="online">.online</option>
-                        <option value="site">.site</option>
-                        <option value="app">.app</option>
-                        <option value="dev">.dev</option>
-                        <option value="info">.info</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
-                        <ChevronDown className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    value={tldPart}
+                    onChange={(e) => {
+                      setTldPart(e.target.value);
+                      setValidationError(null);
+                    }}
+                    placeholder="com"
+                    className="w-full sm:w-28 h-12 px-4 bg-white text-slate-800 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400 border-0 shadow-sm"
+                  />
 
-                  {/* Prominent Action Button */}
-                  <div className="w-full sm:w-auto shrink-0">
-                    <button
-                      type="submit"
-                      disabled={provisionStage === 'provisioning'}
-                      className="w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-sm sm:text-base rounded-xl transition-all shadow-lg shadow-indigo-950/40 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 border border-indigo-400/30 whitespace-nowrap cursor-pointer"
-                    >
-                      <span>Use / Continue</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Dynamic Resource Pool Badge */}
-                <div className="flex flex-wrap items-center justify-between text-[11px] text-indigo-200/80 pt-1 px-1 gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Default PHP 8.2 Engine (Dedicated Isolated Tenant FPM Socket)
-                  </span>
-                  <span className="text-indigo-300/80 font-mono">
-                    Dynamic Shared NVMe Resource Pool (No Artificial Quota Limits)
-                  </span>
+                  <button
+                    type="submit"
+                    disabled={provisionStage === 'provisioning'}
+                    className="w-full sm:w-auto h-12 px-8 bg-[#0c0545] hover:bg-[#140a6b] text-white font-bold text-sm rounded-md transition-colors shadow-sm active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer border-0"
+                  >
+                    Use
+                  </button>
                 </div>
 
                 {validationError && (
-                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-2">
+                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-md text-xs text-rose-200 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{validationError}</span>
                   </div>
