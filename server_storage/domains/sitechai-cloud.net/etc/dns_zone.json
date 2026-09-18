@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789698618371-1",
+    "id": "rec-1789699096406-1",
     "name": "sitechai-cloud.net",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,7 +9,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789698618371-2",
+    "id": "rec-1789699096406-2",
     "name": "www.sitechai-cloud.net",
     "type": "CNAME",
     "value": "sitechai-cloud.net",

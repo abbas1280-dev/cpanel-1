@@ -480,9 +480,10 @@ export async function createDatabaseUser(accountPrefix: string, userSuffix: stri
       throw new Error(`Database user "${fullUsername}" already exists on this server.`);
     }
 
-    // Create user for both '%' (remote/socket) and 'localhost'
-    await conn.query('CREATE USER ?@? IDENTIFIED BY ?', [fullUsername, '%', password]);
-    await conn.query('CREATE USER ?@? IDENTIFIED BY ?', [fullUsername, 'localhost', password]);
+    // Create user for '%', 'localhost', and '127.0.0.1'
+    await conn.query('CREATE USER IF NOT EXISTS ?@? IDENTIFIED BY ?', [fullUsername, '%', password]);
+    await conn.query('CREATE USER IF NOT EXISTS ?@? IDENTIFIED BY ?', [fullUsername, 'localhost', password]);
+    await conn.query('CREATE USER IF NOT EXISTS ?@? IDENTIFIED BY ?', [fullUsername, '127.0.0.1', password]);
     await conn.query('FLUSH PRIVILEGES');
 
     return {
@@ -615,9 +616,11 @@ export async function setDatabasePrivileges(
   const conn = await getConnection();
   try {
     const isAll = requestedPrivileges === 'ALL' || (
-      Array.isArray(requestedPrivileges) &&
-      requestedPrivileges.length >= SUPPORTED_PRIVILEGES.length &&
-      SUPPORTED_PRIVILEGES.every(p => requestedPrivileges.includes(p))
+      Array.isArray(requestedPrivileges) && (
+        requestedPrivileges.includes('ALL') ||
+        requestedPrivileges.includes('ALL PRIVILEGES') ||
+        (requestedPrivileges.length >= SUPPORTED_PRIVILEGES.length && SUPPORTED_PRIVILEGES.every(p => requestedPrivileges.includes(p)))
+      )
     );
 
     // Revoke current grants on this database first for clean recalculation
@@ -627,10 +630,14 @@ export async function setDatabasePrivileges(
     try {
       await conn.query(`REVOKE ALL PRIVILEGES ON \`${fullDbName}\`.* FROM '${fullUsername}'@'localhost'`);
     } catch (e) {}
+    try {
+      await conn.query(`REVOKE ALL PRIVILEGES ON \`${fullDbName}\`.* FROM '${fullUsername}'@'127.0.0.1'`);
+    } catch (e) {}
 
     if (isAll) {
       await conn.query(`GRANT ALL PRIVILEGES ON \`${fullDbName}\`.* TO '${fullUsername}'@'%'`);
       await conn.query(`GRANT ALL PRIVILEGES ON \`${fullDbName}\`.* TO '${fullUsername}'@'localhost'`);
+      await conn.query(`GRANT ALL PRIVILEGES ON \`${fullDbName}\`.* TO '${fullUsername}'@'127.0.0.1'`);
     } else if (Array.isArray(requestedPrivileges) && requestedPrivileges.length > 0) {
       // Filter only valid supported privileges to prevent SQL injection
       const validPrivs = requestedPrivileges.filter(p => (SUPPORTED_PRIVILEGES as readonly string[]).includes(p));
@@ -638,6 +645,7 @@ export async function setDatabasePrivileges(
         const privClause = validPrivs.join(', ');
         await conn.query(`GRANT ${privClause} ON \`${fullDbName}\`.* TO '${fullUsername}'@'%'`);
         await conn.query(`GRANT ${privClause} ON \`${fullDbName}\`.* TO '${fullUsername}'@'localhost'`);
+        await conn.query(`GRANT ${privClause} ON \`${fullDbName}\`.* TO '${fullUsername}'@'127.0.0.1'`);
       }
     }
 

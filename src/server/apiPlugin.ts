@@ -3655,6 +3655,53 @@ export function serverApiPlugin(): Plugin {
           return;
         }
 
+        // 10b. Live Site Web Server Preview (/sites/:domain/*)
+        if (url.startsWith('/sites/') && request.method === 'GET') {
+          try {
+            const urlPath = url.split('?')[0];
+            const parts = urlPath.replace(/^\/sites\//, '').split('/');
+            const domain = parts[0];
+            let subPath = parts.slice(1).join('/');
+            if (!subPath || subPath === '') subPath = 'index.html';
+
+            const publicHtmlDir = path.join(STORAGE_ROOT, 'domains', domain, 'public_html');
+            let targetFile = path.resolve(publicHtmlDir, subPath);
+
+            if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+              targetFile = path.join(targetFile, 'index.html');
+            }
+
+            if (!targetFile.startsWith(publicHtmlDir) || !fs.existsSync(targetFile)) {
+              response.statusCode = 404;
+              response.setHeader('Content-Type', 'text/html; charset=utf-8');
+              response.end(`<!DOCTYPE html><html><head><title>404 Not Found</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h1>404 Not Found</h1><p>File not found for website <b>${domain}</b> in <code>public_html/</code></p></body></html>`);
+              return;
+            }
+
+            const ext = path.extname(targetFile).toLowerCase();
+            const mimeTypes: Record<string, string> = {
+              '.html': 'text/html; charset=utf-8',
+              '.css': 'text/css; charset=utf-8',
+              '.js': 'application/javascript; charset=utf-8',
+              '.json': 'application/json; charset=utf-8',
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.gif': 'image/gif',
+              '.svg': 'image/svg+xml',
+              '.ico': 'image/x-icon',
+              '.txt': 'text/plain; charset=utf-8'
+            };
+            const contentType = mimeTypes[ext] || 'application/octet-stream';
+            response.writeHead(200, { 'Content-Type': contentType });
+            fs.createReadStream(targetFile).pipe(response);
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(`Server Error: ${e.message}`);
+          }
+          return;
+        }
+
         // 11. Files List
         if (url.startsWith('/api/files/list') && request.method === 'GET') {
           try {

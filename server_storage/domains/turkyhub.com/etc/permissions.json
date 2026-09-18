@@ -35,5 +35,6 @@
   "lsd.turkyhub.com/index.html": "0644",
   "public_html/test_audit_dir": "0755",
   "public_html/test_audit_dir/app.php": "0755",
-  "public_html/test_audit.zip": "0644"
+  "public_html/test_audit.zip": "0644",
+  "public_html/test_page.html": "0644"
 }

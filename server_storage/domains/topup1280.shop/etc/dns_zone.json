@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789698618363-1",
+    "id": "rec-1789699096398-1",
     "name": "topup1280.shop",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,7 +9,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789698618363-2",
+    "id": "rec-1789699096398-2",
     "name": "www.topup1280.shop",
     "type": "CNAME",
     "value": "topup1280.shop",
