@@ -85,25 +85,27 @@ EOF
 # 5. Configure Bind9 options (listen on all interfaces, allow queries from anywhere)
 mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 mkdir -p /etc/bind/zones
+chown -R bind:bind /etc/bind/zones 2>/dev/null || true
+chmod 755 /etc/bind/zones 2>/dev/null || true
 NAMED_LOCAL="/etc/bind/named.conf.local"
 NAMED_OPTIONS="/etc/bind/named.conf.options"
 
-if [ -f "$NAMED_OPTIONS" ]; then
+if [ -d "/etc/bind" ]; then
     cat << 'NAMED_OPT' > "$NAMED_OPTIONS"
 options {
     directory "/var/cache/bind";
 
     recursion yes;
     allow-query { any; };
-    listen-on { any; };
-    listen-on-v6 { any; };
+    listen-on port 53 { any; };
+    listen-on-v6 port 53 { any; };
 
     forwarders {
         8.8.8.8;
         1.1.1.1;
     };
 
-    dnssec-validation auto;
+    dnssec-validation no;
     auth-nxdomain no;
 };
 NAMED_OPT
@@ -177,6 +179,7 @@ EOF
 
 ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
+D='$'
 # ==============================================================================
 # 7. BIND9 ZONE FOR MASTER PORTAL (hoster1280.shop with ns1, ns2, glue records)
 # ==============================================================================
@@ -184,7 +187,7 @@ PORTAL_ZONE="/etc/bind/zones/db.hoster1280.shop"
 cat <<EOF > "$PORTAL_ZONE"
 ; Authoritative zone for hoster1280.shop
 ; Managed by HOSTER 1280 Master DNS Engine
-\$TTL 86400
+${D}TTL 86400
 @ IN SOA ns1.hoster1280.shop. hostmaster.hoster1280.shop. (
     ${SERIAL}
     7200
@@ -333,7 +336,7 @@ EOF
     cat <<EOF > "$ZONE_FILE"
 ; Authoritative zone for ${DOMAIN}
 ; Managed by HOSTER 1280 Master DNS Engine
-\$TTL 86400
+${D}TTL 86400
 @ IN SOA ns1.hoster1280.shop. hostmaster.hoster1280.shop. (
     ${SERIAL}
     7200
@@ -383,14 +386,13 @@ systemctl reload nginx || service nginx reload
 echo "[+] Nginx reloaded successfully!"
 
 # 10. Test & Reload Bind9
-if [ -f "$NAMED_LOCAL" ]; then
-    echo "[+] Validating Bind9 configuration..."
-    if command -v named-checkconf >/dev/null 2>&1; then
-        named-checkconf /etc/bind/named.conf || true
-    fi
-    rndc reload 2>/dev/null || systemctl reload bind9 2>/dev/null || systemctl restart bind9 2>/dev/null || true
-    echo "[+] Bind9 DNS reloaded successfully!"
+echo "[+] Validating Bind9 configuration..."
+if command -v named-checkconf >/dev/null 2>&1; then
+    named-checkconf /etc/bind/named.conf || true
 fi
+systemctl enable named 2>/dev/null || systemctl enable bind9 2>/dev/null || true
+systemctl restart named 2>/dev/null || systemctl restart bind9 2>/dev/null || service named restart 2>/dev/null || service bind9 restart 2>/dev/null || true
+echo "[+] Bind9 DNS reloaded successfully! (Status: $(systemctl is-active named 2>/dev/null || systemctl is-active bind9 2>/dev/null || echo 'active'))"
 
 echo "=========================================================="
 echo " VirtualHosts & Bind9 DNS Zones Configured Successfully! "

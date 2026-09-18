@@ -1,0 +1,29 @@
+;;
+;; Domain:     hoster1280.shop.
+;; Exported:   2026-09-18 15:30:00
+;;
+;; Restored Zone File for HOSTER 1280 on Freestyle Cloud
+;;
+;; SOA Record
+hoster1280.shop.	3600	IN	SOA	anahi.ns.cloudflare.com. dns.cloudflare.com. 2054141182 10000 2400 604800 3600
+
+;; NS Records
+hoster1280.shop.	86400	IN	NS	anahi.ns.cloudflare.com.
+hoster1280.shop.	86400	IN	NS	arvind.ns.cloudflare.com.
+
+;; Freestyle ACME Challenge Delegation (Automatic SSL)
+_acme-challenge.cpanel.hoster1280.shop.	1	IN	NS	beta-dns.freestyle.sh.
+_acme-challenge.hoster1280.shop.	1	IN	NS	beta-dns.freestyle.sh.
+
+;; Freestyle Custom Hostname Verification
+_freestyle_custom_hostname_challenge.cpanel.hoster1280.shop.	1	IN	TXT	"freestyle-verify-achnlia0gocinkuna6mkimtowxfa3qo5z"
+_freestyle_custom_hostname_challenge.hoster1280.shop.	1	IN	TXT	"freestyle-verify-kss4c3j3o3paaiu53openywfm7fcpcgn"
+
+;; Nameserver A Records (Direct to Server IP, DNS Only)
+ns1.hoster1280.shop.	1	IN	A	208.72.218.129 ; cf_tags=cf-proxied:false
+ns2.hoster1280.shop.	1	IN	A	208.72.218.129 ; cf_tags=cf-proxied:false
+
+;; Web and cPanel Routing (Freestyle Edge Proxy, Proxied: True)
+hoster1280.shop.	1	IN	CNAME	beta-web.freestyle.sh. ; cf_tags=cf-proxied:true
+cpanel.hoster1280.shop.	1	IN	CNAME	beta-web.freestyle.sh. ; cf_tags=cf-proxied:true
+www.hoster1280.shop.	1	IN	CNAME	beta-web.freestyle.sh. ; cf_tags=cf-proxied:true
