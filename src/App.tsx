@@ -470,6 +470,21 @@ export function App() {
               domains={domains}
               onToggleAutoRenew={handleToggleAutoRenew}
               onAddDomain={handleAddDomain}
+              onOpenDomainsSuite={(domName, subtab) => {
+                const srv = services.find(s => s.domain === domName) || {
+                  id: 'srv-' + domName,
+                  product: 'Premium cPanel Hosting',
+                  domain: domName,
+                  pricing: '$9.99/mo',
+                  billingCycle: 'Monthly',
+                  nextDueDate: '2027-01-01',
+                  status: 'Active',
+                  serverIp: '208.72.218.129'
+                };
+                setCpanelTargetService(srv);
+                setDomainsSuiteInitialTab(subtab || 'zone_editor');
+                setActiveTab('cpanel_domains');
+              }}
             />
           )}
 

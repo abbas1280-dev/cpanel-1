@@ -42,14 +42,32 @@ export const CustomCPanelDashboard: React.FC<CustomCPanelDashboardProps> = ({
         }
       } else if (event.data.type === 'OPEN_DOMAINS') {
         const targetDomain = event.data.domain || activeDomain;
-        const targetService = allServices.find(s => s.domain === targetDomain) || initialService;
-        if (targetService && onOpenDomains) {
+        const targetService: ServiceItem = allServices.find(s => s.domain === targetDomain) || initialService || {
+          id: 'srv-' + targetDomain,
+          product: 'Premium cPanel Hosting',
+          domain: targetDomain,
+          pricing: '$9.99/mo',
+          billingCycle: 'Monthly',
+          nextDueDate: '2027-01-01',
+          status: 'Active',
+          serverIp: '208.72.218.129'
+        };
+        if (onOpenDomains) {
           onOpenDomains(targetService, event.data.tab as DomainSubTab);
         }
       } else if (event.data.type === 'OPEN_DATABASES') {
         const targetDomain = event.data.domain || activeDomain;
-        const targetService = allServices.find(s => s.domain === targetDomain) || initialService;
-        if (targetService && onOpenDatabases) {
+        const targetService: ServiceItem = allServices.find(s => s.domain === targetDomain) || initialService || {
+          id: 'srv-' + targetDomain,
+          product: 'Premium cPanel Hosting',
+          domain: targetDomain,
+          pricing: '$9.99/mo',
+          billingCycle: 'Monthly',
+          nextDueDate: '2027-01-01',
+          status: 'Active',
+          serverIp: '208.72.218.129'
+        };
+        if (onOpenDatabases) {
           onOpenDatabases(targetService, event.data.tab);
         }
       }
@@ -83,6 +101,27 @@ export const CustomCPanelDashboard: React.FC<CustomCPanelDashboardProps> = ({
               title="Open cPanel File Manager"
             >
               <span>📁 File Manager</span>
+            </button>
+          )}
+          {onOpenDomains && (
+            <button
+              onClick={() => {
+                const srv = allServices.find(s => s.domain === activeDomain) || initialService || {
+                  id: 'srv-' + activeDomain,
+                  product: 'Premium cPanel Hosting',
+                  domain: activeDomain,
+                  pricing: '$9.99/mo',
+                  billingCycle: 'Monthly',
+                  nextDueDate: '2027-01-01',
+                  status: 'Active',
+                  serverIp: '208.72.218.129'
+                };
+                onOpenDomains(srv, 'domains');
+              }}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold shadow-sm"
+              title="Open Domains Management Suite"
+            >
+              <span>🌐 Domains Suite</span>
             </button>
           )}
           <button

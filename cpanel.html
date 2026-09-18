@@ -1438,7 +1438,157 @@
 
         }
 
-    </style>
+    
+        /* ========================================================================= */
+        /* CPANEL DOMAINS SUITE CSS */
+        /* ========================================================================= */
+        .domains-tabs-bar {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            border-bottom: 2px solid #e2e8f0;
+            margin: 20px 0;
+            padding-bottom: 2px;
+        }
+        .domains-tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .domains-tab-btn:hover {
+            color: #1e293b;
+            background: #f1f5f9;
+        }
+        .domains-tab-btn.active-tab {
+            color: #ff6c2c;
+            border-bottom: 3px solid #ff6c2c;
+            background: #fff7ed;
+        }
+        .domains-subtab-pane {
+            display: none;
+        }
+        .domains-subtab-pane.active-pane {
+            display: block;
+        }
+        .domains-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .domains-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            text-align: left;
+        }
+        .domains-table th {
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .domains-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: middle;
+        }
+        .domains-table tr:hover {
+            background: #f8fafc;
+        }
+        .btn-cp-orange {
+            background: #ff6c2c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-cp-orange:hover {
+            background: #ea580c;
+        }
+        .btn-cp-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cp-secondary:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+        .badge-status-green {
+            background: #dcfce7;
+            color: #15803d;
+            font-weight: 700;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            border: 1px solid #bbf7d0;
+        }
+        .badge-status-blue {
+            background: #e0f2fe;
+            color: #0369a1;
+            font-weight: 700;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            border: 1px solid #bae6fd;
+        }
+        .diag-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .diag-modal-box {
+            background: white;
+            border-radius: 16px;
+            max-width: 520px;
+            width: 100%;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            animation: modalFadeIn 0.15s ease-out;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+</style>
 
 </head>
 
@@ -2304,7 +2454,489 @@
 
     <!-- ================= JAVASCRIPT LOGIC ================= -->
 
-    <script>
+    
+    <!-- ========================================================================= -->
+    <!-- VIEW: DOMAINS SUITE (DOMAINS, SUBDOMAINS, ADDONS, ALIASES, REDIRECTS, DNS, DDNS) -->
+    <!-- ========================================================================= -->
+    <div id="view-domains" class="view-container">
+        <header class="top-header" style="background:#1e1740; color:white; padding: 12px 24px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap: 12px;">
+                <button class="btn-back-cpanel" onclick="switchView('view-dashboard')" style="background:rgba(255,255,255,0.15); color:white; border:none; padding:6px 14px; border-radius:8px; font-weight:600; font-size:12px; cursor:pointer;">
+                    <i class="fa-solid fa-arrow-left"></i> Back to cPanel
+                </button>
+                <span style="font-weight:700; font-size:14px; letter-spacing:0.5px;">cPanel Jupiter &bull; Domains Suite</span>
+            </div>
+            <div style="display:flex; align-items:center; gap: 10px;">
+                <span style="font-size:12px; color:#cbd5e1;">Active Domain:</span>
+                <span id="domainsActiveDomainBadge" style="font-family:monospace; font-weight:700; color:#ff6c2c; background:rgba(0,0,0,0.3); padding:4px 10px; border-radius:6px;">turkyhub.com</span>
+                <button onclick="runDiagnosticPingModal(currentDomain)" class="btn-cp-orange" style="padding:5px 12px; font-size:11px;">
+                    <i class="fa-solid fa-bolt"></i> Live Diagnostic
+                </button>
+            </div>
+        </header>
+
+        <div class="db-page-wrapper">
+            <h1 class="db-page-title" style="margin-top:10px;">
+                <i class="fa-solid fa-globe" style="color: #ff6c2c; margin-right: 8px;"></i> Domains Management Suite
+            </h1>
+            <p class="db-page-desc">
+                Production-grade multi-tenant domain engine powered by Nginx and Bind9 authoritative DNS. Manage root domains, subdomains, addon domains, aliases, 301/302 rewrites, and Dynamic DNS.
+            </p>
+
+            <!-- 7-Tab Navigation Bar -->
+            <div class="domains-tabs-bar">
+                <button class="domains-tab-btn active-tab" id="tabNav-domains" onclick="switchDomainsSubTab('domains')">
+                    <i class="fa-solid fa-globe"></i> Domains
+                </button>
+                <button class="domains-tab-btn" id="tabNav-subdomains" onclick="switchDomainsSubTab('subdomains')">
+                    <i class="fa-solid fa-sitemap"></i> Subdomains
+                </button>
+                <button class="domains-tab-btn" id="tabNav-addon" onclick="switchDomainsSubTab('addon')">
+                    <i class="fa-solid fa-circle-plus"></i> Addon Domains
+                </button>
+                <button class="domains-tab-btn" id="tabNav-aliases" onclick="switchDomainsSubTab('aliases')">
+                    <i class="fa-solid fa-link"></i> Aliases
+                </button>
+                <button class="domains-tab-btn" id="tabNav-redirects" onclick="switchDomainsSubTab('redirects')">
+                    <i class="fa-solid fa-arrow-turn-down" style="transform: rotate(90deg);"></i> Redirects
+                </button>
+                <button class="domains-tab-btn" id="tabNav-zone_editor" onclick="switchDomainsSubTab('zone_editor')">
+                    <i class="fa-solid fa-pen-to-square"></i> Zone Editor
+                </button>
+                <button class="domains-tab-btn" id="tabNav-ddns" onclick="switchDomainsSubTab('ddns')">
+                    <i class="fa-solid fa-right-left"></i> Dynamic DNS
+                </button>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 1: DOMAINS OVERVIEW -->
+            <!-- ======================================================== -->
+            <div id="pane-domains" class="domains-subtab-pane active-pane">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <div style="font-size:13px; font-weight:700; color:#1e293b;">
+                        Hosted Domains on this Account
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="switchDomainsSubTab('subdomains')" class="btn-cp-orange" style="font-size:11px;">
+                            <i class="fa-solid fa-plus"></i> Create Subdomain
+                        </button>
+                        <button onclick="switchDomainsSubTab('addon')" class="btn-cp-secondary" style="font-size:11px;">
+                            <i class="fa-solid fa-plus"></i> Create Addon
+                        </button>
+                    </div>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Type</th>
+                                <th>Document Root</th>
+                                <th>Redirection</th>
+                                <th>Force HTTPS</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domainsTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align:center; padding:30px; color:#94a3b8;">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Loading domains from server...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 2: SUBDOMAINS -->
+            <!-- ======================================================== -->
+            <div id="pane-subdomains" class="domains-subtab-pane">
+                <div class="domains-card">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:4px; color:#0f172a;">Create a Subdomain</h3>
+                    <p style="font-size:12px; color:#64748b; margin-bottom:18px;">
+                        Subdomains are isolated sections of your website. Webroots are strictly placed <strong>OUTSIDE</strong> <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">public_html</code> for multi-tenant isolation.
+                    </p>
+
+                    <form onsubmit="handleSubdomainSubmit(event)" style="max-width:600px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:14px;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Subdomain Prefix</label>
+                                <input type="text" id="subPrefixInput" required placeholder="e.g. blog, store, api" class="cp-input" style="width:100%; font-family:monospace;" oninput="updateSubDocRootSuggestion()">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Domain</label>
+                                <select id="subParentSelect" class="cp-input" style="width:100%; font-weight:600;" onchange="updateSubDocRootSuggestion()"></select>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">
+                                Document Root (Isolated outside public_html)
+                            </label>
+                            <div style="display:flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:6px 12px;">
+                                <span id="subUsernamePrefixSpan" style="font-size:12px; color:#94a3b8; font-family:monospace;">/home/user/</span>
+                                <input type="text" id="subDocRootInput" required class="cp-input" style="border:none; background:transparent; width:100%; font-family:monospace; font-weight:700; color:#0f172a; padding:0 4px;">
+                            </div>
+                        </div>
+
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                            <input type="checkbox" id="subForceHttpsCheck" checked style="cursor:pointer;">
+                            <label for="subForceHttpsCheck" style="font-size:12px; color:#334155; font-weight:600; cursor:pointer;">
+                                Automatically generate SSL & Force HTTPS
+                            </label>
+                        </div>
+
+                        <button type="submit" id="btnCreateSub" class="btn-cp-orange">
+                            <i class="fa-solid fa-plus"></i> Create Subdomain
+                        </button>
+                    </form>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155;">
+                        Active Subdomains
+                    </div>
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Subdomain</th>
+                                <th>Document Root</th>
+                                <th>Redirection</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subdomainsTableBody">
+                            <tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">Loading subdomains...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 3: ADDON DOMAINS -->
+            <!-- ======================================================== -->
+            <div id="pane-addon" class="domains-subtab-pane">
+                <div class="domains-card">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:4px; color:#0f172a;">Create an Addon Domain</h3>
+                    <p style="font-size:12px; color:#64748b; margin-bottom:18px;">
+                        An addon domain is an entirely independent website with its own standalone domain name, separate document root, and isolated PHP process.
+                    </p>
+
+                    <form onsubmit="handleAddonSubmit(event)" style="max-width:600px;">
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">New Domain Name</label>
+                            <input type="text" id="addonDomainInput" required placeholder="e.g. clientbrand.com" class="cp-input" style="width:100%; font-weight:600;" oninput="updateAddonDocRootSuggestion()">
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:14px;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Subdomain / FTP Username</label>
+                                <input type="text" id="addonUserInput" class="cp-input" style="width:100%; font-family:monospace; background:#f8fafc;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Document Root</label>
+                                <div style="display:flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:6px 12px;">
+                                    <span style="font-size:12px; color:#94a3b8; font-family:monospace;">/home/.../</span>
+                                    <input type="text" id="addonDocRootInput" required class="cp-input" style="border:none; background:transparent; width:100%; font-family:monospace; font-weight:700; padding:0 4px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+                            <input type="checkbox" id="addonForceHttpsCheck" checked style="cursor:pointer;">
+                            <label for="addonForceHttpsCheck" style="font-size:12px; color:#334155; font-weight:600; cursor:pointer;">
+                                Automatically generate SSL & Force HTTPS
+                            </label>
+                        </div>
+
+                        <button type="submit" id="btnCreateAddon" class="btn-cp-orange">
+                            <i class="fa-solid fa-plus"></i> Create Addon Domain
+                        </button>
+                    </form>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155;">
+                        Active Addon Domains
+                    </div>
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Document Root</th>
+                                <th>Redirection</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="addonTableBody">
+                            <tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">Loading addon domains...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 4: ALIASES (PARKED DOMAINS) -->
+            <!-- ======================================================== -->
+            <div id="pane-aliases" class="domains-subtab-pane">
+                <div class="domains-card">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:4px; color:#0f172a;">Create a New Alias (Parked Domain)</h3>
+                    <p style="font-size:12px; color:#64748b; margin-bottom:18px;">
+                        Domain aliases make your website available from another domain name (e.g. parking <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">mycompany.net</code> on <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">mycompany.com</code>).
+                    </p>
+
+                    <form onsubmit="handleAliasSubmit(event)" style="max-width:600px;">
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Domain Alias</label>
+                            <input type="text" id="aliasDomainInput" required placeholder="e.g. companyalias.com" class="cp-input" style="width:100%; font-weight:600;">
+                        </div>
+
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Target Webroot Domain</label>
+                            <select id="aliasTargetSelect" class="cp-input" style="width:100%; font-weight:600;"></select>
+                        </div>
+
+                        <button type="submit" id="btnCreateAlias" class="btn-cp-orange">
+                            <i class="fa-solid fa-plus"></i> Add Domain Alias
+                        </button>
+                    </form>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155;">
+                        Active Domain Aliases
+                    </div>
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Domain Alias</th>
+                                <th>Target Webroot</th>
+                                <th>Status</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aliasesTableBody">
+                            <tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">Loading aliases...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 5: REDIRECTS -->
+            <!-- ======================================================== -->
+            <div id="pane-redirects" class="domains-subtab-pane">
+                <div class="domains-card">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:4px; color:#0f172a;">Add 301 / 302 Domain Redirect</h3>
+                    <p style="font-size:12px; color:#64748b; margin-bottom:18px;">
+                        Rewrite incoming visitors from a specific path or entire domain to an external URL. Rules are compiled into Nginx server blocks.
+                    </p>
+
+                    <form onsubmit="handleRedirectSubmit(event)" style="max-width:600px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:14px;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Type</label>
+                                <select id="redTypeSelect" class="cp-input" style="width:100%; font-weight:600;">
+                                    <option value="permanent">Permanent (301)</option>
+                                    <option value="temporary">Temporary (302)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Source Domain</label>
+                                <select id="redDomainSelect" class="cp-input" style="width:100%; font-weight:600;"></select>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Source Directory / Path (Optional)</label>
+                            <input type="text" id="redDirectoryInput" placeholder="e.g. promo or leave blank for root" class="cp-input" style="width:100%; font-family:monospace;">
+                        </div>
+
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Redirects to (Destination URL)</label>
+                            <input type="url" id="redTargetUrlInput" required placeholder="https://destination-url.com" class="cp-input" style="width:100%; font-family:monospace;">
+                        </div>
+
+                        <button type="submit" id="btnCreateRedirect" class="btn-cp-orange">
+                            <i class="fa-solid fa-plus"></i> Add Redirect Rule
+                        </button>
+                    </form>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                        <span>Active Redirect Rules</span>
+                        <button onclick="loadCpanelRedirects()" class="btn-cp-secondary" style="padding:4px 8px;"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                    </div>
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Domain / Path</th>
+                                <th>Type</th>
+                                <th>Destination Target</th>
+                                <th>Status</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="redirectsTableBody">
+                            <tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">Loading redirects...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 6: ZONE EDITOR (BIND9) -->
+            <!-- ======================================================== -->
+            <div id="pane-zone_editor" class="domains-subtab-pane">
+                <div class="domains-card" style="margin-bottom:16px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                        <div>
+                            <h3 style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">Authoritative DNS Zone Editor (Bind9)</h3>
+                            <p style="font-size:12px; color:#64748b; margin:0;">
+                                Direct zone file records. Changes auto-increment serial (YYYYMMDDNN) and reload Bind9 service.
+                            </p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="font-size:12px; font-weight:600; color:#475569;">Zone:</label>
+                            <select id="zoneDomainSelect" class="cp-input" style="font-weight:700;" onchange="loadCpanelDnsZone()"></select>
+                            <button onclick="toggleAddRecordForm()" class="btn-cp-orange" style="font-size:11px;">
+                                <i class="fa-solid fa-plus"></i> Add Record
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inline Add/Edit DNS Form -->
+                    <div id="addRecordFormWrapper" style="display:none; margin-top:20px; padding:16px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px;">
+                        <h4 style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:12px;" id="dnsFormTitle">Add New DNS Record</h4>
+                        <form onsubmit="handleDnsRecordSubmit(event)">
+                            <input type="hidden" id="dnsRecordId">
+                            <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+                                <div>
+                                    <label style="display:block; font-size:10px; font-weight:700; color:#475569; margin-bottom:4px;">Name</label>
+                                    <input type="text" id="dnsRecordName" required placeholder="sub.domain.com." class="cp-input" style="width:100%; font-family:monospace;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:10px; font-weight:700; color:#475569; margin-bottom:4px;">Type</label>
+                                    <select id="dnsRecordType" class="cp-input" style="width:100%; font-weight:700;">
+                                        <option value="A">A</option>
+                                        <option value="AAAA">AAAA</option>
+                                        <option value="CNAME">CNAME</option>
+                                        <option value="MX">MX</option>
+                                        <option value="TXT">TXT</option>
+                                        <option value="SRV">SRV</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:10px; font-weight:700; color:#475569; margin-bottom:4px;">TTL</label>
+                                    <input type="number" id="dnsRecordTtl" value="14400" required class="cp-input" style="width:100%; font-family:monospace;">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:14px;">
+                                <label style="display:block; font-size:10px; font-weight:700; color:#475569; margin-bottom:4px;">Record Value</label>
+                                <input type="text" id="dnsRecordValue" required placeholder="IP address or host" class="cp-input" style="width:100%; font-family:monospace;">
+                            </div>
+                            <div style="display:flex; justify-content:flex-end; gap:8px;">
+                                <button type="button" onclick="toggleAddRecordForm(false)" class="btn-cp-secondary">Cancel</button>
+                                <button type="submit" class="btn-cp-orange"><i class="fa-solid fa-check"></i> Save Record</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Name</th>
+                                <th>TTL</th>
+                                <th>Record / Value</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="zoneRecordsTableBody">
+                            <tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">Loading DNS zone...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- PANE 7: DYNAMIC DNS (DDNS) -->
+            <!-- ======================================================== -->
+            <div id="pane-ddns" class="domains-subtab-pane">
+                <div class="domains-card">
+                    <h3 style="font-size:15px; font-weight:700; margin-bottom:4px; color:#0f172a;">Dynamic DNS (DDNS) Engine</h3>
+                    <p style="font-size:12px; color:#64748b; margin-bottom:18px;">
+                        Dynamically update the A record of any subdomain using a single <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">curl</code> command from home routers, VPN nodes, or remote devices.
+                    </p>
+
+                    <form onsubmit="handleDdnsSubmit(event)" style="max-width:550px;">
+                        <div style="margin-bottom:14px;">
+                            <label style="display:block; font-size:11px; font-weight:700; color:#475569; margin-bottom:6px;">Dynamic Subdomain Prefix</label>
+                            <div style="display:flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:6px 12px;">
+                                <input type="text" id="ddnsPrefixInput" required placeholder="e.g. home, vpn, router" class="cp-input" style="border:none; background:transparent; width:100%; font-family:monospace; font-weight:700; padding:0 4px;">
+                                <span id="ddnsDomainSuffixSpan" style="font-size:12px; color:#64748b; font-family:monospace; font-weight:600;">.turkyhub.com</span>
+                            </div>
+                        </div>
+                        <button type="submit" id="btnGenDdns" class="btn-cp-orange">
+                            <i class="fa-solid fa-bolt"></i> Generate DDNS Key & Endpoint
+                        </button>
+                    </form>
+                </div>
+
+                <div class="domains-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid #e2e8f0; font-size:12px; font-weight:700; color:#334155;">
+                        Active Dynamic DNS Endpoints
+                    </div>
+                    <table class="domains-table">
+                        <thead>
+                            <tr>
+                                <th>Hostname</th>
+                                <th>Current IP</th>
+                                <th>Last Updated</th>
+                                <th>Update Command</th>
+                                <th style="text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ddnsTokensTableBody">
+                            <tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">Loading DDNS endpoints...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- REAL-TIME DIAGNOSTIC PING & DNS PROBE MODAL -->
+    <!-- ========================================================================= -->
+    <div id="modalDiagnostic" class="diag-modal-backdrop">
+        <div class="diag-modal-box">
+            <div style="background:#0f172a; color:white; padding:14px 20px; display:flex; align-items:center; justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-bolt" style="color:#ff6c2c;"></i>
+                    <span style="font-weight:700; font-size:13px;">Live Server & DNS Diagnostic Probe</span>
+                </div>
+                <button onclick="closeDiagnosticModal()" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:16px;">&times;</button>
+            </div>
+            <div style="padding:20px;" id="diagModalBody">
+                <div style="text-align:center; padding:30px; color:#64748b;">
+                    <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:#ff6c2c;"></i>
+                    <p style="margin-top:10px; font-size:12px; font-weight:600;">Probing DNS propagation, ping latency & Nginx status...</p>
+                </div>
+            </div>
+            <div style="background:#f8fafc; padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:8px;">
+                <button onclick="reTestDiagnosticModal()" class="btn-cp-orange" style="font-size:11px;"><i class="fa-solid fa-rotate"></i> Re-test Now</button>
+                <button onclick="closeDiagnosticModal()" class="btn-cp-secondary" style="font-size:11px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script>
         // Real API Base URL & Query Parameter Binding
         const API_BASE = window.location.origin;
         const urlParams = new URLSearchParams(window.location.search);
@@ -2392,15 +3024,6 @@
             window.location.href = '/?tab=filemanager&domain=' + encodeURIComponent(currentDomain);
         }
 
-        function openDomainsSuite(tab = 'domains') {
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage({ type: 'OPEN_DOMAINS', domain: currentDomain, tab: tab }, '*');
-                return;
-            }
-            window.location.href = '/?tab=cpanel_domains&subtab=' + encodeURIComponent(tab) + '&domain=' + encodeURIComponent(currentDomain);
-        }
-
-
         function switchView(viewId) {
             if (viewId === 'view-pma') {
                 launchPmaSSO();
@@ -2417,6 +3040,8 @@
             }
             if (viewId === 'view-filemanager') {
                 reloadFiles(currentPath);
+            } else if (viewId === 'view-domains') {
+                loadCpanelDomains();
             } else if (viewId === 'view-manage-db') {
                 loadRealDatabases();
             }
@@ -2821,7 +3446,703 @@
             reloadFiles();
             loadRealDatabases();
         });
-    </script>
+    
+
+        // =========================================================================
+        // DOMAINS SUITE ENGINE & DISPATCHER
+        // =========================================================================
+        let currentDomainsList = [];
+        let activeDomainsSubTab = 'domains';
+        let currentDiagTarget = '';
+
+        function openDomainsSuite(tab = 'domains') {
+            switchView('view-domains');
+            switchDomainsSubTab(tab);
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ type: 'OPEN_DOMAINS', domain: currentDomain, tab: tab }, '*');
+                } catch(e) {}
+            }
+        }
+
+        function switchDomainsSubTab(subTab) {
+            activeDomainsSubTab = subTab || 'domains';
+            document.querySelectorAll('.domains-tab-btn').forEach(btn => btn.classList.remove('active-tab'));
+            document.querySelectorAll('.domains-subtab-pane').forEach(p => p.classList.remove('active-pane'));
+
+            const navBtn = document.getElementById(`tabNav-${activeDomainsSubTab}`);
+            if (navBtn) navBtn.classList.add('active-tab');
+
+            const pane = document.getElementById(`pane-${activeDomainsSubTab}`);
+            if (pane) pane.classList.add('active-pane');
+
+            const badge = document.getElementById('domainsActiveDomainBadge');
+            if (badge) badge.innerText = currentDomain;
+
+            const ddnsSuffix = document.getElementById('ddnsDomainSuffixSpan');
+            if (ddnsSuffix) ddnsSuffix.innerText = `.${currentDomain}`;
+
+            const username = currentDomain.split('.')[0].slice(0, 7).toLowerCase() + '1';
+            const subPre = document.getElementById('subUsernamePrefixSpan');
+            if (subPre) subPre.innerText = `/home/${username}/`;
+
+            if (activeDomainsSubTab === 'domains' || activeDomainsSubTab === 'subdomains' || activeDomainsSubTab === 'addon' || activeDomainsSubTab === 'aliases') {
+                loadCpanelDomains();
+            } else if (activeDomainsSubTab === 'redirects') {
+                loadCpanelRedirects();
+            } else if (activeDomainsSubTab === 'zone_editor') {
+                loadCpanelDnsZone();
+            } else if (activeDomainsSubTab === 'ddns') {
+                loadCpanelDdnsTokens();
+            }
+        }
+
+        async function loadCpanelDomains() {
+            const tbody = document.getElementById('domainsTableBody');
+            const subTbody = document.getElementById('subdomainsTableBody');
+            const addonTbody = document.getElementById('addonTableBody');
+            const aliasTbody = document.getElementById('aliasesTableBody');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/list?domain=${encodeURIComponent(currentDomain)}`);
+                const data = await res.json();
+                currentDomainsList = data.domains || [];
+
+                // Populate domain selectors
+                const subParentSel = document.getElementById('subParentSelect');
+                const aliasTargetSel = document.getElementById('aliasTargetSelect');
+                const redDomainSel = document.getElementById('redDomainSelect');
+                const zoneDomainSel = document.getElementById('zoneDomainSelect');
+
+                const domainOptions = currentDomainsList.map(d => `<option value="${d.domain}">.${d.domain}</option>`).join('');
+                const fullDomainOptions = currentDomainsList.map(d => `<option value="${d.domain}">${d.domain}</option>`).join('');
+
+                if (subParentSel && subParentSel.innerHTML !== domainOptions) subParentSel.innerHTML = domainOptions;
+                if (aliasTargetSel && aliasTargetSel.innerHTML !== fullDomainOptions) aliasTargetSel.innerHTML = fullDomainOptions;
+                if (redDomainSel && redDomainSel.innerHTML !== fullDomainOptions) redDomainSel.innerHTML = fullDomainOptions;
+                if (zoneDomainSel && zoneDomainSel.innerHTML !== fullDomainOptions) zoneDomainSel.innerHTML = fullDomainOptions;
+
+                // 1. All Domains Table
+                if (tbody) {
+                    if (currentDomainsList.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:25px; color:#94a3b8;">No domains configured.</td></tr>';
+                    } else {
+                        tbody.innerHTML = currentDomainsList.map(d => `
+                            <tr>
+                                <td>
+                                    <strong><a href="http://${d.domain}" target="_blank" style="color:#0f172a; text-decoration:none;">${d.domain}</a></strong>
+                                    ${d.isMain ? '<span class="badge-status-blue" style="margin-left:6px;">MAIN</span>' : ''}
+                                </td>
+                                <td><span style="font-weight:700; color:#64748b; text-transform:capitalize;">${d.type || 'root'}</span></td>
+                                <td style="font-family:monospace; color:#475569;">${d.documentRoot}</td>
+                                <td>${d.redirectsTo ? `<span style="color:#d97706; font-weight:700;">&rarr; ${d.redirectsTo}</span>` : '<span style="color:#94a3b8;">None</span>'}</td>
+                                <td>
+                                    <span class="${d.forceHttps ? 'badge-status-green' : 'badge-status-blue'}">
+                                        ${d.forceHttps ? 'HTTPS On' : 'HTTP'}
+                                    </span>
+                                </td>
+                                <td style="text-align:right;">
+                                    <button onclick="runDiagnosticPingModal('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; margin-right:4px;" title="Diagnostic Ping">
+                                        <i class="fa-solid fa-bolt" style="color:#ff6c2c;"></i>
+                                    </button>
+                                    ${!d.isMain ? `<button onclick="deleteCpanelDomain('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; color:#dc2626;" title="Delete"><i class="fa-solid fa-trash"></i></button>` : ''}
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+
+                // 2. Subdomains Table
+                if (subTbody) {
+                    const subs = currentDomainsList.filter(d => !d.isMain && d.type === 'subdomain');
+                    if (subs.length === 0) {
+                        subTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">No subdomains created yet.</td></tr>';
+                    } else {
+                        subTbody.innerHTML = subs.map(d => `
+                            <tr>
+                                <td><strong>${d.domain}</strong></td>
+                                <td style="font-family:monospace; color:#047857;">${d.documentRoot}</td>
+                                <td>${d.redirectsTo || 'none'}</td>
+                                <td style="text-align:right;">
+                                    <button onclick="runDiagnosticPingModal('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; margin-right:4px;"><i class="fa-solid fa-bolt" style="color:#ff6c2c;"></i></button>
+                                    <button onclick="deleteCpanelDomain('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; color:#dc2626;"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+
+                // 3. Addon Domains Table
+                if (addonTbody) {
+                    const addons = currentDomainsList.filter(d => d.type === 'addon');
+                    if (addons.length === 0) {
+                        addonTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">No addon domains configured.</td></tr>';
+                    } else {
+                        addonTbody.innerHTML = addons.map(d => `
+                            <tr>
+                                <td><strong>${d.domain}</strong></td>
+                                <td style="font-family:monospace; color:#0369a1;">${d.documentRoot}</td>
+                                <td>${d.redirectsTo || 'none'}</td>
+                                <td style="text-align:right;">
+                                    <button onclick="runDiagnosticPingModal('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; margin-right:4px;"><i class="fa-solid fa-bolt" style="color:#ff6c2c;"></i></button>
+                                    <button onclick="deleteCpanelDomain('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; color:#dc2626;"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+
+                // 4. Aliases Table
+                if (aliasTbody) {
+                    const aliases = currentDomainsList.filter(d => d.type === 'alias');
+                    if (aliases.length === 0) {
+                        aliasTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">No domain aliases configured.</td></tr>';
+                    } else {
+                        aliasTbody.innerHTML = aliases.map(d => `
+                            <tr>
+                                <td><strong>${d.domain}</strong></td>
+                                <td style="font-family:monospace; color:#6b21a8;">Points to ${d.parentDomain || currentDomain} (/public_html)</td>
+                                <td><span class="badge-status-green">Live Alias</span></td>
+                                <td style="text-align:right;">
+                                    <button onclick="runDiagnosticPingModal('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; margin-right:4px;"><i class="fa-solid fa-bolt" style="color:#ff6c2c;"></i></button>
+                                    <button onclick="deleteCpanelDomain('${d.domain}')" class="btn-cp-secondary" style="padding:3px 8px; color:#dc2626;"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch(e) {
+                console.error('Failed to load cPanel domains', e);
+            }
+        }
+
+        function updateSubDocRootSuggestion() {
+            const pre = document.getElementById('subPrefixInput').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+            const docInput = document.getElementById('subDocRootInput');
+            if (pre) {
+                docInput.value = `subdomains/${pre}`;
+            } else {
+                docInput.value = '';
+            }
+        }
+
+        function updateAddonDocRootSuggestion() {
+            const dom = document.getElementById('addonDomainInput').value.trim().toLowerCase().replace(/[^a-z0-9.-]/g, '');
+            const userInput = document.getElementById('addonUserInput');
+            const docInput = document.getElementById('addonDocRootInput');
+            if (dom) {
+                const user = dom.split('.')[0].slice(0, 8);
+                userInput.value = user;
+                docInput.value = `domains/${dom}`;
+            } else {
+                userInput.value = '';
+                docInput.value = '';
+            }
+        }
+
+        async function handleSubdomainSubmit(e) {
+            e.preventDefault();
+            const prefix = document.getElementById('subPrefixInput').value.trim();
+            const parent = document.getElementById('subParentSelect').value.trim();
+            const docRoot = document.getElementById('subDocRootInput').value.trim();
+            const forceHttps = document.getElementById('subForceHttpsCheck').checked;
+            const btn = document.getElementById('btnCreateSub');
+
+            if (!prefix) return alert('Please specify a subdomain prefix.');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Provisioning...';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mainDomain: currentDomain,
+                        prefix: prefix.toLowerCase(),
+                        parentDomain: parent || currentDomain,
+                        documentRoot: docRoot.startsWith('/') ? docRoot : `/${docRoot}`,
+                        type: 'subdomain',
+                        forceHttps
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Subdomain "${data.domain.domain}" provisioned successfully with isolated webroot!`);
+                    document.getElementById('subPrefixInput').value = '';
+                    document.getElementById('subDocRootInput').value = '';
+                    loadCpanelDomains();
+                    switchDomainsSubTab('domains');
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to create subdomain.'));
+                }
+            } catch(err) {
+                alert('Network error provisioning subdomain.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-plus"></i> Create Subdomain';
+            }
+        }
+
+        async function handleAddonSubmit(e) {
+            e.preventDefault();
+            const domain = document.getElementById('addonDomainInput').value.trim();
+            const user = document.getElementById('addonUserInput').value.trim();
+            const docRoot = document.getElementById('addonDocRootInput').value.trim();
+            const forceHttps = document.getElementById('addonForceHttpsCheck').checked;
+            const btn = document.getElementById('btnCreateAddon');
+
+            if (!domain) return alert('Please enter domain name.');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Provisioning...';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mainDomain: currentDomain,
+                        domain: domain.toLowerCase(),
+                        subdomainUsername: user,
+                        documentRoot: docRoot.startsWith('/') ? docRoot : `/${docRoot}`,
+                        type: 'addon',
+                        forceHttps
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Addon domain "${data.domain.domain}" provisioned successfully!`);
+                    document.getElementById('addonDomainInput').value = '';
+                    loadCpanelDomains();
+                    switchDomainsSubTab('domains');
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to create addon domain.'));
+                }
+            } catch(err) {
+                alert('Network error provisioning addon domain.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-plus"></i> Create Addon Domain';
+            }
+        }
+
+        async function handleAliasSubmit(e) {
+            e.preventDefault();
+            const alias = document.getElementById('aliasDomainInput').value.trim();
+            const target = document.getElementById('aliasTargetSelect').value.trim();
+            const btn = document.getElementById('btnCreateAlias');
+
+            if (!alias) return alert('Please enter alias domain.');
+
+            btn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mainDomain: currentDomain,
+                        domain: alias.toLowerCase(),
+                        parentDomain: target || currentDomain,
+                        documentRoot: '/public_html',
+                        type: 'alias',
+                        forceHttps: true
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Domain alias "${data.domain.domain}" added!`);
+                    document.getElementById('aliasDomainInput').value = '';
+                    loadCpanelDomains();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to add alias.'));
+                }
+            } catch(err) {
+                alert('Network error adding domain alias.');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteCpanelDomain(domainToDelete) {
+            if (!confirm(`Are you sure you want to remove domain "${domainToDelete}"?`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: currentDomain, domain: domainToDelete, purgeFiles: false })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadCpanelDomains();
+                } else {
+                    alert(data.error || 'Failed to delete domain.');
+                }
+            } catch(e) {
+                alert('Network error deleting domain.');
+            }
+        }
+
+        // ==========================================
+        // REDIRECTS HANDLERS
+        // ==========================================
+        async function loadCpanelRedirects() {
+            const tbody = document.getElementById('redirectsTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/redirects?domain=${encodeURIComponent(currentDomain)}`);
+                const data = await res.json();
+                const reds = data.redirects || [];
+                if (reds.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No redirects configured.</td></tr>';
+                } else {
+                    tbody.innerHTML = reds.map(r => `
+                        <tr>
+                            <td><strong>${r.domain}${r.directory !== '/' ? r.directory : ''}</strong></td>
+                            <td><span class="badge-status-blue">${r.type === 'permanent' ? '301 Permanent' : '302 Temporary'}</span></td>
+                            <td style="font-family:monospace; color:#0284c7;"><a href="${r.redirectUrl}" target="_blank">${r.redirectUrl}</a></td>
+                            <td><span class="badge-status-green">Active in Nginx</span></td>
+                            <td style="text-align:right;">
+                                <button onclick="deleteCpanelRedirect('${r.id}')" class="btn-cp-secondary" style="color:#dc2626; padding:3px 8px;"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function handleRedirectSubmit(e) {
+            e.preventDefault();
+            const type = document.getElementById('redTypeSelect').value;
+            const dom = document.getElementById('redDomainSelect').value || currentDomain;
+            const dir = document.getElementById('redDirectoryInput').value.trim() || '/';
+            const target = document.getElementById('redTargetUrlInput').value.trim();
+
+            if (!target.startsWith('http://') && !target.startsWith('https://')) {
+                return alert('Redirect destination URL must start with http:// or https://');
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/redirect/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mainDomain: currentDomain,
+                        domain: dom,
+                        directory: dir,
+                        redirectUrl: target,
+                        type,
+                        matchType: 'all'
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Redirect rule saved and Nginx reloaded successfully!');
+                    document.getElementById('redDirectoryInput').value = '';
+                    document.getElementById('redTargetUrlInput').value = '';
+                    loadCpanelRedirects();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch(err) {
+                alert('Network error creating redirect.');
+            }
+        }
+
+        async function deleteCpanelRedirect(id) {
+            if (!confirm('Remove this redirect rule?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/domains/redirect/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: currentDomain, id })
+                });
+                const data = await res.json();
+                if (data.success) loadCpanelRedirects();
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // DNS ZONE EDITOR HANDLERS
+        // ==========================================
+        async function loadCpanelDnsZone() {
+            const tbody = document.getElementById('zoneRecordsTableBody');
+            const zoneSel = document.getElementById('zoneDomainSelect');
+            const targetZone = zoneSel && zoneSel.value ? zoneSel.value : currentDomain;
+            if (!tbody) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/dns/zone?domain=${encodeURIComponent(targetZone)}`);
+                const data = await res.json();
+                const records = data.records || [];
+                if (records.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No records in zone.</td></tr>';
+                } else {
+                    tbody.innerHTML = records.map(r => `
+                        <tr>
+                            <td><span style="font-weight:700; color:#2563eb;">${r.type}</span></td>
+                            <td style="font-weight:600; font-family:monospace;">${r.name}</td>
+                            <td style="color:#64748b; font-family:monospace;">${r.ttl}</td>
+                            <td style="font-family:monospace; color:#334155;">${r.priority ? `[${r.priority}] ` : ''}${r.record}</td>
+                            <td style="text-align:right;">
+                                <button onclick="editDnsRecord('${r.id}', '${r.name}', '${r.type}', ${r.ttl}, '${r.record.replace(/'/g, "\\'")}')" class="btn-cp-secondary" style="padding:2px 6px; margin-right:4px;"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteDnsRecord('${r.id}')" class="btn-cp-secondary" style="color:#dc2626; padding:2px 6px;"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function toggleAddRecordForm(show) {
+            const form = document.getElementById('addRecordFormWrapper');
+            if (!form) return;
+            const willShow = show !== undefined ? show : (form.style.display === 'none');
+            form.style.display = willShow ? 'block' : 'none';
+            if (willShow) {
+                document.getElementById('dnsFormTitle').innerText = 'Add New DNS Record';
+                document.getElementById('dnsRecordId').value = '';
+                document.getElementById('dnsRecordName').value = `${currentDomain}.`;
+                document.getElementById('dnsRecordType').value = 'A';
+                document.getElementById('dnsRecordTtl').value = 14400;
+                document.getElementById('dnsRecordValue').value = accountInfo?.sharedIp || '208.72.218.129';
+            }
+        }
+
+        function editDnsRecord(id, name, type, ttl, val) {
+            toggleAddRecordForm(true);
+            document.getElementById('dnsFormTitle').innerText = 'Edit DNS Record';
+            document.getElementById('dnsRecordId').value = id;
+            document.getElementById('dnsRecordName').value = name;
+            document.getElementById('dnsRecordType').value = type;
+            document.getElementById('dnsRecordTtl').value = ttl;
+            document.getElementById('dnsRecordValue').value = val;
+        }
+
+        async function handleDnsRecordSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('dnsRecordId').value;
+            const name = document.getElementById('dnsRecordName').value.trim();
+            const type = document.getElementById('dnsRecordType').value;
+            const ttl = Number(document.getElementById('dnsRecordTtl').value) || 14400;
+            const record = document.getElementById('dnsRecordValue').value.trim();
+            const zoneSel = document.getElementById('zoneDomainSelect');
+            const targetZone = zoneSel && zoneSel.value ? zoneSel.value : currentDomain;
+
+            const endpoint = id ? '/api/cpanel/dns/record/update' : '/api/cpanel/dns/record/create';
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mainDomain: targetZone,
+                        record: { id: id || undefined, name, type, ttl, record }
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('DNS record saved and Bind9 zone reloaded successfully!');
+                    toggleAddRecordForm(false);
+                    loadCpanelDnsZone();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch(err) {
+                alert('Network error saving DNS record.');
+            }
+        }
+
+        async function deleteDnsRecord(recordId) {
+            if (!confirm('Delete this DNS record?')) return;
+            const zoneSel = document.getElementById('zoneDomainSelect');
+            const targetZone = zoneSel && zoneSel.value ? zoneSel.value : currentDomain;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/dns/record/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: targetZone, recordId })
+                });
+                const data = await res.json();
+                if (data.success) loadCpanelDnsZone();
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // DYNAMIC DNS (DDNS) HANDLERS
+        // ==========================================
+        async function loadCpanelDdnsTokens() {
+            const tbody = document.getElementById('ddnsTokensTableBody');
+            if (!tbody) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/ddns/tokens?domain=${encodeURIComponent(currentDomain)}`);
+                const data = await res.json();
+                const tokens = data.tokens || [];
+                if (tokens.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;">No dynamic DNS tokens created.</td></tr>';
+                } else {
+                    tbody.innerHTML = tokens.map(t => {
+                        const cmd = `curl "https://hoster1280.shop/api/ddns/update?domain=${t.fullDomain}&token=${t.token}"`;
+                        return `
+                            <tr>
+                                <td><strong>${t.fullDomain}</strong></td>
+                                <td style="font-family:monospace; color:#059669; font-weight:700;">${t.currentIp || '208.72.218.129'}</td>
+                                <td style="color:#64748b; font-size:11px;">${new Date(t.lastUpdated).toLocaleDateString()}</td>
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 8px; border-radius:6px; font-family:monospace; font-size:10px; max-width:300px;">
+                                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${cmd}</span>
+                                        <button onclick="navigator.clipboard.writeText('${cmd}'); alert('Copied curl command to clipboard!');" class="btn-cp-secondary" style="padding:1px 5px;"><i class="fa-solid fa-copy"></i></button>
+                                    </div>
+                                </td>
+                                <td style="text-align:right;">
+                                    <button onclick="revokeDdnsToken('${t.id}')" class="btn-cp-secondary" style="color:#dc2626; padding:3px 8px;"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function handleDdnsSubmit(e) {
+            e.preventDefault();
+            const pre = document.getElementById('ddnsPrefixInput').value.trim();
+            if (!pre) return alert('Enter a subdomain prefix.');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/ddns/tokens/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: currentDomain, subdomain: pre.toLowerCase() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Dynamic DNS endpoint created for ${data.item.fullDomain}!`);
+                    document.getElementById('ddnsPrefixInput').value = '';
+                    loadCpanelDdnsTokens();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch(err) {
+                alert('Network error generating DDNS token.');
+            }
+        }
+
+        async function revokeDdnsToken(id) {
+            if (!confirm('Revoke this DDNS key?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/ddns/tokens/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: currentDomain, id })
+                });
+                const data = await res.json();
+                if (data.success) loadCpanelDdnsTokens();
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // DIAGNOSTIC PING MODAL
+        // ==========================================
+        async function runDiagnosticPingModal(domainName) {
+            currentDiagTarget = domainName || currentDomain;
+            const modal = document.getElementById('modalDiagnostic');
+            const body = document.getElementById('diagModalBody');
+            if (!modal || !body) return;
+
+            modal.style.display = 'flex';
+            body.innerHTML = `
+                <div style="text-align:center; padding:30px; color:#64748b;">
+                    <i class="fa-solid fa-spinner fa-spin" style="font-size:24px; color:#ff6c2c;"></i>
+                    <p style="margin-top:10px; font-size:12px; font-weight:600;">Probing DNS resolution, latency, & Nginx for ${currentDiagTarget}...</p>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/cpanel/diagnostics/ping`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mainDomain: currentDomain, domain: currentDiagTarget })
+                });
+                const data = await res.json();
+                if (data.success && data.result) {
+                    const r = data.result;
+                    body.innerHTML = `
+                        <div style="font-size:12px; display:flex; flex-direction:column; gap:12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">DNS Resolution</div>
+                                    <div style="font-family:monospace; font-weight:700; color:#0f172a;">${r.resolved ? r.ip : 'NXDOMAIN'}</div>
+                                </div>
+                                <div>
+                                    ${r.resolved ? `<span class="badge-status-green"><i class="fa-solid fa-check"></i> Resolved (${r.dnsLookupTimeMs}ms)</span>` : `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:9999px; font-weight:700; font-size:10px;">Unresolved</span>`}
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Ping Latency</div>
+                                    <div style="font-family:monospace; font-weight:700; color:#0f172a;">${r.pingLatencyMs !== null ? r.pingLatencyMs + ' ms' : 'Filtered'}</div>
+                                </div>
+                                <div>
+                                    ${r.pingSuccess ? `<span class="badge-status-green"><i class="fa-solid fa-check"></i> Ping OK</span>` : `<span class="badge-status-blue">ICMP Filtered</span>`}
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">HTTP Web Server</div>
+                                    <div style="font-family:monospace; font-weight:700; color:#0f172a;">${r.httpStatusCode ? 'HTTP ' + r.httpStatusCode : 'No HTTP response'}</div>
+                                </div>
+                                <div>
+                                    ${r.httpOk ? `<span class="badge-status-green"><i class="fa-solid fa-check"></i> 200 OK</span>` : `<span style="background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:9999px; font-weight:700; font-size:10px;">Status ${r.httpStatusCode || 'Error'}</span>`}
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Nginx Server Block</div>
+                                    <div style="font-family:monospace; font-size:11px; color:#475569;">/etc/nginx/sites-available/${currentDiagTarget}.conf</div>
+                                </div>
+                                <div>
+                                    ${r.nginxConfigValid ? `<span class="badge-status-green"><i class="fa-solid fa-check"></i> nginx -t OK</span>` : `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:9999px; font-weight:700; font-size:10px;">Config Error</span>`}
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase;">Webroot Directory</div>
+                                    <div style="font-family:monospace; font-size:11px; color:#475569;">${r.documentRootPath}</div>
+                                </div>
+                                <div>
+                                    ${r.documentRootExists ? `<span class="badge-status-green"><i class="fa-solid fa-check"></i> Directory Exists</span>` : `<span style="background:#fee2e2; color:#dc2626; padding:3px 8px; border-radius:9999px; font-weight:700; font-size:10px;">Missing</span>`}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    body.innerHTML = `<div style="padding:15px; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:12px;">Diagnostic failed: ${data.error || 'Server error'}</div>`;
+                }
+            } catch(e) {
+                body.innerHTML = `<div style="padding:15px; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:12px;">Network error running diagnostic probe.</div>`;
+            }
+        }
+
+        function reTestDiagnosticModal() {
+            if (currentDiagTarget) runDiagnosticPingModal(currentDiagTarget);
+        }
+
+        function closeDiagnosticModal() {
+            const modal = document.getElementById('modalDiagnostic');
+            if (modal) modal.style.display = 'none';
+        }
+
+</script>
 
 </body>
 

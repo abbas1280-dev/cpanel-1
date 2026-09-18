@@ -20,6 +20,28 @@ if [[ ! "$REAL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$REAL_IP" =~ ^1
 fi
 echo "[+] Detected Server Public IPv4: ${REAL_IP}"
 
+# 1.1 Ensure Bind9 & DNS utilities are installed
+if ! command -v named &>/dev/null || [ ! -d "/etc/bind" ]; then
+    echo "[+] Installing Bind9 authoritative DNS server & utilities..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get install -y bind9 bind9utils dnsutils
+fi
+
+# 1.2 Open Firewall Ports for DNS & Web
+if command -v ufw &>/dev/null; then
+    echo "[+] Configuring UFW firewall rules for DNS (53) & Web (80, 443)..."
+    ufw allow 53/tcp || true
+    ufw allow 53/udp || true
+    ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
+fi
+
+# 1.3 Ensure /home/ubuntu and /home directories allow traversal by www-data
+echo "[+] Setting directory traversal permissions for Nginx (www-data)..."
+chmod 755 /home 2>/dev/null || true
+chmod 755 /home/ubuntu 2>/dev/null || true
+
 # 2. Locate Active PHP-FPM Socket
 PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
 if [ -z "$PHP_SOCK" ]; then
@@ -45,6 +67,7 @@ fi
 
 STORAGE_DIR="${REPO_DIR}/server_storage"
 mkdir -p "${STORAGE_DIR}/domains"
+chmod -R 755 "${STORAGE_DIR}/domains" 2>/dev/null || true
 echo "[+] Project Directory: ${REPO_DIR}"
 echo "[+] Storage Directory: ${STORAGE_DIR}"
 
@@ -59,10 +82,33 @@ cat <<EOF > "${STORAGE_DIR}/settings.json"
 }
 EOF
 
-# 5. Prepare Nginx & Bind9 directories
+# 5. Configure Bind9 options (listen on all interfaces, allow queries from anywhere)
 mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
 mkdir -p /etc/bind/zones
 NAMED_LOCAL="/etc/bind/named.conf.local"
+NAMED_OPTIONS="/etc/bind/named.conf.options"
+
+if [ -f "$NAMED_OPTIONS" ]; then
+    cat << 'NAMED_OPT' > "$NAMED_OPTIONS"
+options {
+    directory "/var/cache/bind";
+
+    recursion yes;
+    allow-query { any; };
+    listen-on { any; };
+    listen-on-v6 { any; };
+
+    forwarders {
+        8.8.8.8;
+        1.1.1.1;
+    };
+
+    dnssec-validation auto;
+    auth-nxdomain no;
+};
+NAMED_OPT
+fi
+
 SERIAL=$(date +%Y%m%d01)
 
 # ==============================================================================

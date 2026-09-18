@@ -2129,7 +2129,63 @@ export function serverApiPlugin(): Plugin {
         }
 
         // =========================================================================
-        // 13. FILE MANAGER: UPLOAD (/api/filemanager/upload)
+        // 13. FILE MANAGER: STREAMING UPLOAD (/api/filemanager/upload-stream)
+        // =========================================================================
+        if (url.startsWith('/api/filemanager/upload-stream') && request.method === 'POST') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const reqPath = parsed.searchParams.get('path') || '/';
+            const filename = parsed.searchParams.get('filename') || `upload_${Date.now()}`;
+
+            ensureStandardDomainStructure(domain);
+            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
+            const targetDir = path.resolve(domainRoot, cleanSubpath);
+
+            if (!targetDir.startsWith(domainRoot)) {
+              response.statusCode = 403;
+              response.end(JSON.stringify({ error: 'Access denied: Directory traversal' }));
+              return;
+            }
+
+            fs.mkdirSync(targetDir, { recursive: true });
+            const filePath = path.join(targetDir, filename);
+            const writeStream = fs.createWriteStream(filePath);
+
+            request.pipe(writeStream);
+
+            writeStream.on('finish', async () => {
+              try {
+                fs.chmodSync(filePath, 0o644);
+                setPermissions(domain, cleanSubpath ? `${cleanSubpath}/${filename}` : filename, '0644');
+                if (process.platform === 'linux') {
+                  try {
+                    await execPromise(`sudo chmod 644 "${filePath}" 2>/dev/null || true`);
+                    await execPromise(`sudo chown www-data:www-data "${filePath}" 2>/dev/null || true`);
+                  } catch (e) {}
+                }
+                response.setHeader('Content-Type', 'application/json');
+                response.end(JSON.stringify({ success: true, filename, message: 'Uploaded successfully' }));
+              } catch (err: any) {
+                response.statusCode = 500;
+                response.end(JSON.stringify({ error: err.message }));
+              }
+            });
+
+            writeStream.on('error', (err) => {
+              response.statusCode = 500;
+              response.end(JSON.stringify({ error: err.message }));
+            });
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 13B. FILE MANAGER: UPLOAD BASE64 (/api/filemanager/upload)
         // =========================================================================
         if (url === '/api/filemanager/upload' && request.method === 'POST') {
           try {
@@ -3909,7 +3965,7 @@ export function serverApiPlugin(): Plugin {
               httpStatusCode: httpResult.code,
               httpOk: httpResult.ok,
               nginxConfigValid,
-              documentRootExists,
+              documentRootExists: docRootExists,
               documentRootPath: docRootPath || '/public_html',
               checkedAt: new Date().toISOString()
             };

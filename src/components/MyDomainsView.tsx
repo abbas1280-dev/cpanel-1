@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { Globe, Plus, ShieldCheck, CheckCircle2, Search, Settings, AlertTriangle, ExternalLink } from 'lucide-react';
-import { DomainItem } from '../types';
+import { DomainItem, DomainSubTab } from '../types';
 
 interface MyDomainsViewProps {
   domains: DomainItem[];
   onToggleAutoRenew: (id: string) => void;
   onAddDomain: (domain: DomainItem) => void;
+  onOpenDomainsSuite?: (domainName: string, subtab?: DomainSubTab) => void;
 }
 
 export const MyDomainsView: React.FC<MyDomainsViewProps> = ({
   domains,
   onToggleAutoRenew,
-  onAddDomain
+  onAddDomain,
+  onOpenDomainsSuite
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -142,7 +144,13 @@ export const MyDomainsView: React.FC<MyDomainsViewProps> = ({
                   <td className="py-4 px-6 text-right">
                     <div className="inline-flex items-center gap-2">
                       <button
-                        onClick={() => alert(`Opening DNS Zone Editor for ${dom.domainName}`)}
+                        onClick={() => {
+                          if (onOpenDomainsSuite) {
+                            onOpenDomainsSuite(dom.domainName, 'zone_editor');
+                          } else {
+                            alert(`Opening DNS Zone Editor for ${dom.domainName}`);
+                          }
+                        }}
                         className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 text-xs font-semibold transition-colors flex items-center gap-1"
                       >
                         <Settings className="w-3.5 h-3.5" /> DNS
