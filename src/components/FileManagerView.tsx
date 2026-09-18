@@ -170,6 +170,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
   // Upload progress state
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
 
   // Clipboard State (for Cut / Copy / Paste)
   const [clipboard, setClipboard] = useState<{
@@ -1069,6 +1070,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
   const handleExtractSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleSelected) return;
+    setIsExtracting(true);
     try {
       const res = await fetch('/api/filemanager/extract', {
         method: 'POST',
@@ -1080,14 +1082,19 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
           destination: modalExtractDest
         })
       });
-      if (res.ok) {
-        showToast(`Extracted to "${modalExtractDest}".`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast(`"${singleSelected}" extracted successfully to "${modalExtractDest}".`);
         setActiveModal(null);
         fetchDirectory(currentPath);
         fetchTree();
+      } else {
+        showToast(data.error || 'Failed to extract archive.', 'error');
       }
     } catch (e: any) {
-      showToast(e.message, 'error');
+      showToast(e.message || 'Error extracting archive.', 'error');
+    } finally {
+      setIsExtracting(false);
     }
   };
 
@@ -2949,16 +2956,25 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isExtracting}
                   onClick={() => setActiveModal(null)}
-                  className="px-4 py-2 border rounded-xl font-semibold text-slate-600 hover:bg-slate-100"
+                  className="px-4 py-2 border rounded-xl font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm"
+                  disabled={isExtracting}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white font-bold rounded-xl shadow-sm flex items-center gap-2"
                 >
-                  Extract File(s)
+                  {isExtracting ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Extracting...</span>
+                    </>
+                  ) : (
+                    <span>Extract File(s)</span>
+                  )}
                 </button>
               </div>
             </form>

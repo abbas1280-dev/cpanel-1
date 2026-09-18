@@ -1508,29 +1508,110 @@ export function serverApiPlugin(): Plugin {
             const { domain, path: reqPath, archiveName, destination } = await parseJsonBody(request);
             const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
-            const archivePath = path.resolve(domainRoot, cleanSubpath, archiveName);
-            const destDir = path.resolve(domainRoot, (destination || cleanSubpath).replace(/^\/+/, ''));
+            
+            let archivePath = path.resolve(domainRoot, cleanSubpath, archiveName);
+            if (!fs.existsSync(archivePath)) {
+              const altPath = path.resolve(domainRoot, archiveName);
+              if (fs.existsSync(altPath)) archivePath = altPath;
+            }
+
+            let cleanDest = (destination || cleanSubpath).replace(/^\/+/, '');
+            cleanDest = cleanDest.replace(/^home\/[^/]+\/?/, '');
+            const destDir = path.resolve(domainRoot, cleanDest);
 
             if (!archivePath.startsWith(domainRoot) || !destDir.startsWith(domainRoot)) {
               response.statusCode = 403;
-              response.end(JSON.stringify({ error: 'Access denied' }));
+              response.end(JSON.stringify({ success: false, error: 'Access denied: path outside domain boundary' }));
+              return;
+            }
+
+            if (!fs.existsSync(archivePath)) {
+              response.statusCode = 404;
+              response.end(JSON.stringify({ success: false, error: `Archive file "${archiveName}" not found.` }));
               return;
             }
 
             fs.mkdirSync(destDir, { recursive: true });
-            try {
-              await execPromise(`tar -xf "${archivePath}" -C "${destDir}"`);
-            } catch (tarErr) {
-              const safeArchive = archivePath.replace(/'/g, "''");
-              const safeDest = destDir.replace(/'/g, "''");
-              await execPromise(`powershell -NoProfile -Command "Expand-Archive -Path '${safeArchive}' -DestinationPath '${safeDest}' -Force"`);
+
+            const isZip = archiveName.toLowerCase().endsWith('.zip');
+            let extracted = false;
+            let lastErr: any = null;
+
+            if (isZip) {
+              // 1. Try Linux native unzip command
+              try {
+                await execPromise(`unzip -o -q "${archivePath}" -d "${destDir}"`);
+                extracted = true;
+              } catch (e1: any) {
+                lastErr = e1;
+              }
+
+              // 2. Try python3 / python standard library zipfile (universal & reliable)
+              if (!extracted) {
+                try {
+                  const pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+                  await execPromise(`${pyCmd} -c "import zipfile, sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "${archivePath}" "${destDir}"`);
+                  extracted = true;
+                } catch (e2: any) {
+                  lastErr = e2;
+                }
+              }
+
+              // 3. Try bsdtar on systems that support zip
+              if (!extracted) {
+                try {
+                  await execPromise(`tar -xf "${archivePath}" -C "${destDir}"`);
+                  extracted = true;
+                } catch (e3: any) {
+                  lastErr = e3;
+                }
+              }
+
+              // 4. Fallback on Windows to PowerShell Expand-Archive
+              if (!extracted && process.platform === 'win32') {
+                try {
+                  const safeArchive = archivePath.replace(/'/g, "''");
+                  const safeDest = destDir.replace(/'/g, "''");
+                  await execPromise(`powershell -NoProfile -Command "Expand-Archive -Path '${safeArchive}' -DestinationPath '${safeDest}' -Force"`);
+                  extracted = true;
+                } catch (e4: any) {
+                  lastErr = e4;
+                }
+              }
+            } else {
+              // tar / tar.gz / tgz
+              try {
+                await execPromise(`tar -xf "${archivePath}" -C "${destDir}"`);
+                extracted = true;
+              } catch (e1: any) {
+                try {
+                  const pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+                  await execPromise(`${pyCmd} -c "import tarfile, sys; tarfile.open(sys.argv[1]).extractall(sys.argv[2])" "${archivePath}" "${destDir}"`);
+                  extracted = true;
+                } catch (e2: any) {
+                  lastErr = e2;
+                }
+              }
             }
 
+            if (!extracted) {
+              response.statusCode = 500;
+              response.end(JSON.stringify({ success: false, error: `Failed to extract archive: ${lastErr?.message || 'Unsupported archive format'}` }));
+              return;
+            }
+
+            // Fix Linux permissions for extracted files (0755 for dirs, 0644 for files)
+            try {
+              if (process.platform !== 'win32') {
+                await execPromise(`find "${destDir}" -type d -exec chmod 755 {} + 2>/dev/null && find "${destDir}" -type f -exec chmod 644 {} + 2>/dev/null`);
+              }
+            } catch (permErr) {}
+
             response.setHeader('Content-Type', 'application/json');
-            response.end(JSON.stringify({ success: true }));
-          } catch (e) {
+            response.end(JSON.stringify({ success: true, message: `Successfully extracted to ${cleanDest || '/'}` }));
+          } catch (e: any) {
             response.statusCode = 500;
-            response.end(JSON.stringify({ error: String(e) }));
+            response.end(JSON.stringify({ success: false, error: String(e.message || e) }));
           }
           return;
         }
