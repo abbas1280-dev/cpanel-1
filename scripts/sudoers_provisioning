@@ -3,8 +3,14 @@
 # Permissions: 0440 (sudo chmod 0440 /etc/sudoers.d/cpanel-provisioning)
 
 ubuntu ALL=(ALL) NOPASSWD: /bin/bash /home/ubuntu/cpanel-1/scripts/provision_tenant.sh *
+ubuntu ALL=(ALL) NOPASSWD: /bin/bash /home/ubuntu/cpanel-1/scripts/setup_nameservers.sh *
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/certbot *
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload php*-fpm
 ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bind9
+ubuntu ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload bind9
 ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/named-checkconf *
+ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/named-checkzone *
+ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/rndc *
+ubuntu ALL=(ALL) NOPASSWD: /usr/bin/rndc *

@@ -570,6 +570,85 @@ export function removeDnsZoneForDomain(mainDomain: string, domain: string) {
   }
 }
 
+export async function syncBind9Zone(domain: string, serverIp: string) {
+  if (process.platform !== 'linux') return;
+  try {
+    const bindZonesDir = '/etc/bind/zones';
+    const namedLocalConf = '/etc/bind/named.conf.local';
+    if (!fs.existsSync('/etc/bind')) return;
+
+    if (!fs.existsSync(bindZonesDir)) {
+      await execPromise(`sudo mkdir -p "${bindZonesDir}"`);
+    }
+
+    const zoneFile = path.join(bindZonesDir, `db.${domain}`);
+    const serial = `${new Date().toISOString().slice(0, 10).replace(/-/g, '')}01`;
+
+    const zoneContent = `; Authoritative zone for ${domain}
+$TTL 86400
+@ IN SOA ns1.hoster1280.shop. hostmaster.hoster1280.shop. (
+    ${serial}
+    7200
+    3600
+    1209600
+    86400 )
+@ IN NS ns1.hoster1280.shop.
+@ IN NS ns2.hoster1280.shop.
+@ IN A ${serverIp}
+www IN A ${serverIp}
+cpanel IN A ${serverIp}
+mail IN A ${serverIp}
+ftp IN A ${serverIp}
+@ IN MX 10 mail.${domain}.
+@ IN TXT "v=spf1 a mx ip4:${serverIp} ~all"
+`;
+
+    const tmpFile = `/tmp/bind_zone_${domain}_${Date.now()}.txt`;
+    fs.writeFileSync(tmpFile, zoneContent);
+    await execPromise(`sudo cp "${tmpFile}" "${zoneFile}" && sudo rm -f "${tmpFile}"`);
+    await execPromise(`sudo chown bind:bind "${zoneFile}" 2>/dev/null || true`);
+    await execPromise(`sudo chmod 644 "${zoneFile}" 2>/dev/null || true`);
+
+    if (fs.existsSync(namedLocalConf)) {
+      const conf = fs.readFileSync(namedLocalConf, 'utf-8');
+      if (!conf.includes(`"${domain}"`)) {
+        const zoneEntry = `\nzone "${domain}" {\n    type master;\n    file "${zoneFile}";\n    allow-transfer { none; };\n};\n`;
+        const tmpConf = `/tmp/named_entry_${Date.now()}.txt`;
+        fs.writeFileSync(tmpConf, zoneEntry);
+        await execPromise(`cat "${tmpConf}" | sudo tee -a "${namedLocalConf}" >/dev/null && rm -f "${tmpConf}"`);
+      }
+    }
+
+    await execPromise(`sudo rndc reload ${domain} 2>/dev/null || sudo systemctl reload bind9 2>/dev/null || true`);
+  } catch (err: any) {
+    console.warn('Bind9 zone sync warning:', err.message);
+  }
+}
+
+export async function removeBind9Zone(domain: string) {
+  if (process.platform !== 'linux') return;
+  try {
+    const zoneFile = `/etc/bind/zones/db.${domain}`;
+    const namedLocalConf = '/etc/bind/named.conf.local';
+    await execPromise(`sudo rm -f "${zoneFile}" 2>/dev/null || true`);
+
+    if (fs.existsSync(namedLocalConf)) {
+      const conf = fs.readFileSync(namedLocalConf, 'utf-8');
+      const regex = new RegExp(`zone\\s+"${domain.replace('.', '\\.')}"\\s*\\{[^}]*\\};\\s*`, 'g');
+      const updated = conf.replace(regex, '');
+      if (updated !== conf) {
+        const tmpConf = `/tmp/named_clean_${Date.now()}.txt`;
+        fs.writeFileSync(tmpConf, updated);
+        await execPromise(`sudo cp "${tmpConf}" "${namedLocalConf}" && rm -f "${tmpConf}"`);
+      }
+    }
+
+    await execPromise(`sudo systemctl reload bind9 2>/dev/null || true`);
+  } catch (err: any) {
+    console.warn('Bind9 zone remove warning:', err.message);
+  }
+}
+
 export function ensureSslCertificate(mainDomain: string, domain: string) {
   const domainRoot = path.join(STORAGE_ROOT, 'domains', mainDomain);
   const certDir = path.join(domainRoot, 'ssl', 'certs');
@@ -1239,6 +1318,9 @@ export function serverApiPlugin(): Plugin {
 
             // Ensure standard domain storage structure & VHost
             ensureStandardDomainStructure(domain, true);
+
+            // Sync authoritative Bind9 zone on Linux VPS
+            await syncBind9Zone(domain, serverIp);
 
             // Construct new service object
             const newService = {
@@ -2509,8 +2591,10 @@ export function serverApiPlugin(): Plugin {
 
               // Step 5: Update DNS Zone with real server IP
               updateDnsZoneForDomain(mainDomain, domainEntry);
+              await syncBind9Zone(finalDomain, getBestIp());
               rollbackActions.push(() => {
                 removeDnsZoneForDomain(mainDomain, finalDomain);
+                removeBind9Zone(finalDomain);
               });
 
               // Step 6: Ensure SSL Certificate
@@ -2814,6 +2898,7 @@ export function serverApiPlugin(): Plugin {
 
             // Remove DNS zone records
             removeDnsZoneForDomain(mainDomain, domain);
+            await removeBind9Zone(domain);
 
             // Optional: Safe document root purge (only if not public_html root)
             if (purgeFiles && target.documentRoot && target.documentRoot !== '/public_html' && target.documentRoot !== '/') {

@@ -249,6 +249,10 @@ www     IN      A       ${SERVER_IP}
 mail    IN      A       ${SERVER_IP}
 ftp     IN      A       ${SERVER_IP}
 cpanel  IN      A       ${SERVER_IP}
+
+; Mail Exchange (MX) & SPF TXT Records
+@       IN      MX  10  mail.${DOMAIN}.
+@       IN      TXT     "v=spf1 a mx ip4:${SERVER_IP} ~all"
 EOF
   fi
 
