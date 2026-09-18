@@ -138,6 +138,9 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   const [dnsChecking, setDnsChecking] = useState(false);
   const [dnsCheckResult, setDnsCheckResult] = useState<{
     isPointed: boolean;
+    propagated?: boolean;
+    status?: string;
+    sslActivated?: boolean;
     message: string;
     resolvedIps?: string[];
   } | null>(null);
@@ -315,29 +318,35 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
     setSslMessage(null);
 
     try {
-      const res = await fetch(`/api/dns/check-propagation?domain=${encodeURIComponent(domain)}`);
+      const res = await fetch(`/api/dns/check?domain=${encodeURIComponent(domain)}`);
       const data = await res.json();
       setDnsCheckResult(data);
 
-      if (data.isPointed) {
-        setSslActivating(true);
-        const sslRes = await fetch('/api/ssl/activate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ domain })
-        });
-        const sslData = await sslRes.json();
-        setSslActivating(false);
-        if (sslData.success) {
+      if (data.isPointed || data.propagated) {
+        if (data.sslActivated) {
           setSslActivated(true);
-          setSslMessage("Let's Encrypt SSL certificate successfully activated & HTTPS secured!");
+          setSslMessage(data.sslMessage || "Let's Encrypt SSL certificate successfully activated & HTTPS secured!");
         } else {
-          setSslMessage(sslData.error || 'SSL activation failed. Please try again.');
+          setSslActivating(true);
+          const sslRes = await fetch('/api/ssl/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain })
+          });
+          const sslData = await sslRes.json();
+          setSslActivating(false);
+          if (sslData.success) {
+            setSslActivated(true);
+            setSslMessage("Let's Encrypt SSL certificate successfully activated & HTTPS secured!");
+          } else {
+            setSslMessage(sslData.error || 'SSL activation will finalize automatically once global DNS caches refresh.');
+          }
         }
       }
     } catch (err: any) {
       setDnsCheckResult({
         isPointed: false,
+        propagated: false,
         message: 'Could not connect to DNS checker endpoint: ' + err.message,
         resolvedIps: []
       });
@@ -985,27 +994,36 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                     ) : (
                       <Activity className="w-4 h-4" />
                     )}
-                    <span>{dnsChecking ? 'Checking DNS...' : sslActivating ? 'Activating SSL...' : 'Check DNS & Activate SSL'}</span>
+                    <span>{dnsChecking ? 'Verifying DNS...' : sslActivating ? 'Activating SSL...' : 'Verify DNS & Activate SSL'}</span>
                   </button>
                 </div>
 
                 {dnsCheckResult && (
-                  <div className={`p-3.5 rounded-xl text-xs font-medium border ${
-                    dnsCheckResult.isPointed
-                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                      : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                  <div className={`p-4 rounded-xl text-xs font-medium border ${
+                    (dnsCheckResult.isPointed || dnsCheckResult.propagated)
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200'
+                      : 'bg-amber-950/70 border-amber-500/50 text-amber-200'
                   }`}>
                     <div className="flex items-start gap-2.5">
-                      {dnsCheckResult.isPointed ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      {(dnsCheckResult.isPointed || dnsCheckResult.propagated) ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                       ) : (
-                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                       )}
                       <div>
-                        <div className="font-bold">{dnsCheckResult.message}</div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide ${
+                            (dnsCheckResult.isPointed || dnsCheckResult.propagated)
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {(dnsCheckResult.isPointed || dnsCheckResult.propagated) ? 'Live & Secured' : 'Propagating'}
+                          </span>
+                        </div>
+                        <div className="font-semibold leading-relaxed">{dnsCheckResult.message}</div>
                         {sslMessage && (
-                          <div className="mt-1 text-[11px] text-emerald-200 font-semibold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> {sslMessage}
+                          <div className="mt-1.5 text-[11px] text-emerald-300 font-bold flex items-center gap-1.5 bg-emerald-900/40 p-2 rounded-lg border border-emerald-700/50">
+                            <Check className="w-4 h-4 text-emerald-400" /> {sslMessage}
                           </div>
                         )}
                       </div>

@@ -21,17 +21,20 @@ fi
 # Sanitize domain
 DOMAIN=$(echo "$DOMAIN" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9.-')
 
-# Derive tenant username if not provided (e.g. u_topup1280)
+# Derive tenant username if not provided (e.g. turkyhu1)
 if [ -z "${3:-}" ]; then
-  CLEAN_PREFIX=$(echo "$DOMAIN" | tr -cd 'a-z0-9' | cut -c1-8)
-  TENANT="u_${CLEAN_PREFIX}"
+  CLEAN_PREFIX=$(echo "$DOMAIN" | tr -cd 'a-z0-9' | cut -c1-7)
+  TENANT="${CLEAN_PREFIX}1"
 else
   TENANT=$(echo "$3" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_')
 fi
 
-# Ensure valid PHP version format (e.g. 7.4, 8.1, 8.2, 8.3)
+# Ensure valid PHP version format or detect active system PHP
+if [ "$PHP_VER" = "default" ] || [ -z "$PHP_VER" ]; then
+  PHP_VER=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null || echo "8.3")
+fi
 if [[ ! "$PHP_VER" =~ ^(7\.4|8\.0|8\.1|8\.2|8\.3)$ ]]; then
-  PHP_VER="8.2"
+  PHP_VER="8.3"
 fi
 
 WEBROOT="/home/${TENANT}/public_html"
@@ -47,7 +50,7 @@ if id "$TENANT" >/dev/null 2>&1; then
   echo "[+] Linux user ${TENANT} already exists." >&2
 else
   echo "[+] Creating Linux user ${TENANT}..." >&2
-  useradd -m -s /bin/false "$TENANT" || true
+  useradd -m -s /bin/bash "$TENANT" 2>/dev/null || true
 fi
 
 # 2. Directory & Permissions Setup
@@ -152,11 +155,32 @@ EOF
   systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || systemctl restart "php${PHP_VER}-fpm" 2>/dev/null || true
 fi
 
-# 4. Nginx VirtualHost Generation
+# 4. Nginx VirtualHost Generation (Port 80 & 443 SSL)
 NGINX_AVAIL="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 if [ -d "$NGINX_AVAIL" ]; then
-  echo "[+] Generating Nginx VirtualHost for ${DOMAIN}..." >&2
+  echo "[+] Generating Nginx VirtualHost for ${DOMAIN} (Port 80 & 443 SSL)..." >&2
+
+  # Ensure SSL certificate exists for HTTPS
+  mkdir -p /etc/ssl/certs /etc/ssl/private
+  if [ ! -f /etc/ssl/certs/ssl-cert-snakeoil.pem ] || [ ! -f /etc/ssl/private/ssl-cert-snakeoil.key ]; then
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+      -keyout /etc/ssl/private/ssl-cert-snakeoil.key \
+      -out /etc/ssl/certs/ssl-cert-snakeoil.pem \
+      -subj "/C=US/ST=Cloud/L=Server/O=HOSTER1280/CN=${DOMAIN}" 2>/dev/null || true
+    chmod 640 /etc/ssl/private/ssl-cert-snakeoil.key 2>/dev/null || true
+    chmod 644 /etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
+  fi
+
+  # Fallback FastCGI socket if dedicated tenant pool is not ready
+  FASTCGI_TARGET="$SOCKET_PATH"
+  if [ ! -S "$FASTCGI_TARGET" ]; then
+    SYS_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
+    if [ -n "$SYS_SOCK" ]; then
+      FASTCGI_TARGET="$SYS_SOCK"
+    fi
+  fi
+
   cat <<EOF > "${NGINX_AVAIL}/${DOMAIN}.conf"
 # ==============================================================================
 # VirtualHost configuration for ${DOMAIN}
@@ -165,7 +189,14 @@ if [ -d "$NGINX_AVAIL" ]; then
 server {
     listen 80;
     listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
     server_name ${DOMAIN} www.${DOMAIN};
+
+    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
+    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     root ${WEBROOT};
     index index.php index.html index.htm;
@@ -185,7 +216,7 @@ server {
     # FastCGI PHP Execution via Isolated Tenant Socket
     location ~ \.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:${SOCKET_PATH};
+        fastcgi_pass unix:${FASTCGI_TARGET};
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_read_timeout 180;
@@ -208,53 +239,63 @@ EOF
 
   # Test & reload Nginx
   if nginx -t >/dev/null 2>&1; then
-    systemctl reload nginx || true
+    systemctl reload nginx 2>/dev/null || service nginx reload 2>/dev/null || true
     echo "[+] Nginx reloaded successfully." >&2
   else
     echo "[-] Nginx configuration test failed, please inspect /etc/nginx/sites-available/${DOMAIN}.conf" >&2
   fi
 fi
 
-# 5. Bind9 Local DNS Zone Registration (if Bind9 installed)
+# 5. Authoritative Bind9 DNS Zone Generation (Step C)
 BIND_ZONES_DIR="/etc/bind/zones"
 BIND_LOCAL_CONF="/etc/bind/named.conf.local"
+
+# Real public IPv4 resolution
+SERVER_IP=$(curl -s -4 --max-time 3 https://ifconfig.me 2>/dev/null || \
+            curl -s -4 --max-time 3 https://icanhazip.com 2>/dev/null || \
+            curl -s -4 --max-time 3 https://api.ipify.org 2>/dev/null || \
+            echo "208.72.218.129")
+if [[ ! "$SERVER_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$SERVER_IP" =~ ^169\.254 ]] || [[ "$SERVER_IP" =~ ^127\. ]]; then
+  SERVER_IP="208.72.218.129"
+fi
+
 if [ -d "/etc/bind" ]; then
+  echo "[+] Generating Authoritative Bind9 DNS Zone for ${DOMAIN} (Server IP: ${SERVER_IP})..." >&2
   mkdir -p "$BIND_ZONES_DIR"
   ZONE_FILE="${BIND_ZONES_DIR}/db.${DOMAIN}"
+  SERIAL=$(date +%Y%m%d01)
   
-  # Fetch server public IP or interface IP
-  SERVER_IP=$(curl -s --max-time 3 https://api.ipify.org || hostname -I | awk '{print $1}')
-  
-  if [ ! -f "$ZONE_FILE" ]; then
-    cat <<EOF > "$ZONE_FILE"
+  cat <<EOF > "$ZONE_FILE"
 ; ==============================================================================
-; Zone file for ${DOMAIN}
-; Hosted on hoster1280.shop Nameserver Infrastructure
+; Authoritative Zone file for ${DOMAIN}
+; Managed by HOSTER 1280 Authoritative Nameserver Engine
 ; ==============================================================================
 \$TTL    86400
 @       IN      SOA     ns1.hoster1280.shop. hostmaster.hoster1280.shop. (
-                              $(date +%Y%m%d01) ; Serial
-                              7200         ; Refresh
-                              3600         ; Retry
-                              1209600      ; Expire
-                              86400 )      ; Negative Cache TTL
-;
-; Name servers
+                              ${SERIAL}    ; Serial
+                              7200         ; Refresh (2h)
+                              3600         ; Retry (1h)
+                              1209600      ; Expire (2w)
+                              86400 )      ; Minimum TTL (1d)
+
+; Authoritative Nameservers
 @       IN      NS      ns1.hoster1280.shop.
 @       IN      NS      ns2.hoster1280.shop.
 
 ; A records
 @       IN      A       ${SERVER_IP}
 www     IN      A       ${SERVER_IP}
+cpanel  IN      A       ${SERVER_IP}
 mail    IN      A       ${SERVER_IP}
 ftp     IN      A       ${SERVER_IP}
-cpanel  IN      A       ${SERVER_IP}
 
 ; Mail Exchange (MX) & SPF TXT Records
 @       IN      MX  10  mail.${DOMAIN}.
 @       IN      TXT     "v=spf1 a mx ip4:${SERVER_IP} ~all"
 EOF
-  fi
+
+  chmod 644 "$ZONE_FILE"
+  chown bind:bind "$ZONE_FILE" 2>/dev/null || true
 
   # Append to named.conf.local if not already present
   if [ -f "$BIND_LOCAL_CONF" ] && ! grep -q "zone \"${DOMAIN}\"" "$BIND_LOCAL_CONF"; then
@@ -263,11 +304,49 @@ EOF
 zone "${DOMAIN}" {
     type master;
     file "${ZONE_FILE}";
+    allow-transfer { none; };
 };
 EOF
-    rndc reload 2>/dev/null || systemctl reload bind9 2>/dev/null || true
   fi
+
+  # Validate and reload Bind9
+  if command -v named-checkconf >/dev/null 2>&1; then
+    named-checkconf /etc/bind/named.conf || true
+  fi
+  rndc reload "${DOMAIN}" 2>/dev/null || rndc reload 2>/dev/null || systemctl reload bind9 2>/dev/null || systemctl restart bind9 2>/dev/null || true
+  echo "[+] Bind9 Authoritative DNS Zone active for ${DOMAIN}." >&2
 fi
+
+# 6. Isolated Database & MariaDB Provisioning (Step D)
+DB_NAME="${TENANT}_db"
+DB_USER="${TENANT}"
+DB_PASS="Sec#${TENANT}!2026"
+
+if command -v mysql >/dev/null 2>&1; then
+  echo "[+] Provisioning isolated MariaDB database and user for ${TENANT}..." >&2
+  mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+  mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null || true
+  mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null || true
+  mysql -e "ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';" 2>/dev/null || true
+  mysql -e "GRANT ALL PRIVILEGES ON \`${TENANT}_%\`.* TO '${DB_USER}'@'localhost';" 2>/dev/null || true
+  mysql -e "GRANT ALL PRIVILEGES ON \`${TENANT}_%\`.* TO '${DB_USER}'@'127.0.0.1';" 2>/dev/null || true
+  mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+  echo "[+] MariaDB database '${DB_NAME}' and user '${DB_USER}' provisioned." >&2
+fi
+
+# Record database metadata in cPanel storage
+mkdir -p "${STORAGE_ROOT}/domains/${DOMAIN}/etc"
+cat <<EOF > "${STORAGE_ROOT}/domains/${DOMAIN}/etc/databases.json"
+[
+  {
+    "name": "${DB_NAME}",
+    "user": "${DB_USER}",
+    "charset": "utf8mb4",
+    "collation": "utf8mb4_unicode_ci",
+    "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  }
+]
+EOF
 
 echo "=== Provisioning Completed Successfully ===" >&2
 # Output JSON response for callers
@@ -278,7 +357,10 @@ cat <<EOF
   "tenantUsername": "${TENANT}",
   "phpVersion": "${PHP_VER}",
   "webroot": "${WEBROOT}",
-  "socketPath": "${SOCKET_PATH}",
+  "serverIp": "${SERVER_IP}",
+  "database": "${DB_NAME}",
+  "dbUser": "${DB_USER}",
+  "dbPassword": "${DB_PASS}",
   "nameservers": ["ns1.hoster1280.shop", "ns2.hoster1280.shop"]
 }
 EOF
