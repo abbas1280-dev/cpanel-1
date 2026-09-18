@@ -511,12 +511,35 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     }
   };
 
+  const handleOpenInBrowser = (item?: FileItem) => {
+    const rel = currentPath === '/' ? '' : currentPath.replace(/^\/+/, '');
+    const targetFile = item ? (rel ? `${rel}/${item.name}` : item.name) : rel;
+    let webPath = targetFile;
+    if (webPath.startsWith('public_html/')) {
+      webPath = webPath.replace(/^public_html\//, '');
+    } else if (webPath === 'public_html') {
+      webPath = '';
+    }
+    const liveUrl = `/sites/${encodeURIComponent(activeDomain)}/${webPath}`;
+    window.open(liveUrl, '_blank');
+  };
+
   const handleItemDoubleClick = (item: FileItem) => {
     if (item.isDir) {
       const target = currentPath === '/' ? `/${item.name}` : `${currentPath}/${item.name}`;
       navigateTo(target);
     } else {
-      handleOpenEditor(item.name, false);
+      const ext = item.name.split('.').pop()?.toLowerCase();
+      if (['zip', 'tar', 'gz', 'tgz', 'rar'].includes(ext || '')) {
+        setSelectedItems(new Set([item.name]));
+        setModalArchiveName(item.name);
+        setModalExtractDest(currentPath || '/');
+        setActiveModal('extract');
+      } else if (['html', 'htm', 'php'].includes(ext || '')) {
+        handleOpenInBrowser(item);
+      } else {
+        handleOpenEditor(item.name, false);
+      }
     }
   };
 

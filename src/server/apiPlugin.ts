@@ -859,8 +859,10 @@ export function serverApiPlugin(): Plugin {
               // Real PHP execution for .php files
               if (ext === '.php') {
                 try {
-                  const wslPath = filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`);
-                  const { stdout } = await execPromise(`wsl -d Ubuntu php "${wslPath}"`);
+                  const phpCmd = process.platform === 'win32'
+                    ? `wsl -d Ubuntu php "${filePath.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`)}"`
+                    : `php "${filePath}"`;
+                  const { stdout } = await execPromise(phpCmd);
                   response.statusCode = 200;
                   response.setHeader('Content-Type', 'text/html; charset=utf-8');
                   if (targetDomainItem?.forceHttps) {
@@ -3641,14 +3643,23 @@ export function serverApiPlugin(): Plugin {
             const urlPath = url.split('?')[0];
             const parts = urlPath.replace(/^\/sites\//, '').split('/');
             const domain = parts[0];
-            let subPath = parts.slice(1).join('/');
-            if (!subPath || subPath === '') subPath = 'index.html';
-
             const publicHtmlDir = path.join(STORAGE_ROOT, 'domains', domain, 'public_html');
+            let subPath = parts.slice(1).join('/');
+            if (!subPath || subPath === '') {
+              if (fs.existsSync(path.join(publicHtmlDir, 'index.php'))) {
+                subPath = 'index.php';
+              } else {
+                subPath = 'index.html';
+              }
+            }
             let targetFile = path.resolve(publicHtmlDir, subPath);
 
             if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
-              targetFile = path.join(targetFile, 'index.html');
+              if (fs.existsSync(path.join(targetFile, 'index.php'))) {
+                targetFile = path.join(targetFile, 'index.php');
+              } else {
+                targetFile = path.join(targetFile, 'index.html');
+              }
             }
 
             if (!targetFile.startsWith(publicHtmlDir) || !fs.existsSync(targetFile)) {
@@ -3659,6 +3670,25 @@ export function serverApiPlugin(): Plugin {
             }
 
             const ext = path.extname(targetFile).toLowerCase();
+
+            if (ext === '.php') {
+              try {
+                const phpCmd = process.platform === 'win32'
+                  ? `wsl -d Ubuntu php "${targetFile.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`)}"`
+                  : `php "${targetFile}"`;
+                const { stdout } = await execPromise(phpCmd);
+                response.statusCode = 200;
+                response.setHeader('Content-Type', 'text/html; charset=utf-8');
+                response.end(stdout);
+                return;
+              } catch (phpErr: any) {
+                response.statusCode = 500;
+                response.setHeader('Content-Type', 'text/html; charset=utf-8');
+                response.end(`<!DOCTYPE html><html><body><h2>PHP Execution Error</h2><pre>${phpErr.message || String(phpErr)}</pre></body></html>`);
+                return;
+              }
+            }
+
             const mimeTypes: Record<string, string> = {
               '.html': 'text/html; charset=utf-8',
               '.css': 'text/css; charset=utf-8',
