@@ -1,0 +1,17 @@
+[
+  {
+    "domain": "sitechai-cloud.net",
+    "documentRoot": "/public_html",
+    "isMain": true,
+    "redirectsTo": null,
+    "forceHttps": false,
+    "createdAt": "2026-09-17T22:19:45.674Z",
+    "type": "primary",
+    "status": "active",
+    "dnsStatus": "active",
+    "sslStatus": "active",
+    "webServerStatus": "active",
+    "accountUsername": "sitecha1",
+    "updatedAt": "2026-09-17T22:19:45.674Z"
+  }
+]

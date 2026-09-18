@@ -1,0 +1,146 @@
+[
+  {
+    "id": "rec-1789684628643-1",
+    "name": "api",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789684628643-2",
+    "name": "www.api",
+    "type": "CNAME",
+    "value": "api",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589478-1",
+    "name": "blog.turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589478-2",
+    "name": "www.blog.turkyhub.com",
+    "type": "CNAME",
+    "value": "blog.turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589482-1",
+    "name": "store.turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589482-2",
+    "name": "www.store.turkyhub.com",
+    "type": "CNAME",
+    "value": "store.turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589485-1",
+    "name": "techgadgethub.org",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789685589486-2",
+    "name": "www.techgadgethub.org",
+    "type": "CNAME",
+    "value": "techgadgethub.org",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618334-1",
+    "name": "turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618334-2",
+    "name": "www.turkyhub.com",
+    "type": "CNAME",
+    "value": "turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618339-1",
+    "name": "api.turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618339-2",
+    "name": "www.api.turkyhub.com",
+    "type": "CNAME",
+    "value": "api.turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618344-1",
+    "name": "shop.turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618344-2",
+    "name": "www.shop.turkyhub.com",
+    "type": "CNAME",
+    "value": "shop.turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618348-1",
+    "name": "lsd.turkyhub.com",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618348-2",
+    "name": "www.lsd.turkyhub.com",
+    "type": "CNAME",
+    "value": "lsd.turkyhub.com",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  }
+]

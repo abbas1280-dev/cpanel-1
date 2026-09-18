@@ -1,0 +1,20 @@
+[
+  {
+    "id": "rec-1789698618356-1",
+    "name": "tamim1280.shop",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618356-2",
+    "name": "www.tamim1280.shop",
+    "type": "CNAME",
+    "value": "tamim1280.shop",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  }
+]

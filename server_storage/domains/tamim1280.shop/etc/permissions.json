@@ -1,0 +1,16 @@
+{
+  "": "0711",
+  "public_html": "0750",
+  "public_html/index.html": "0644",
+  "public_html/.htaccess": "0644",
+  "public_html/style.css": "0644",
+  "etc": "0750",
+  "logs": "0700",
+  "lscache": "2770",
+  "mail": "0751",
+  "public_ftp": "0750",
+  "ssl": "0755",
+  "tmp": "0755",
+  "access-logs": "0777",
+  "www": "0777"
+}

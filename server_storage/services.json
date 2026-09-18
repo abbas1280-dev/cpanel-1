@@ -1,0 +1,42 @@
+[
+  {
+    "id": "srv-101",
+    "product": "Shared Cloud Hosting",
+    "domain": "turkyhub.com",
+    "pricing": "",
+    "billingCycle": "Monthly",
+    "nextDueDate": "Tuesday, February 10th, 2027",
+    "status": "Active",
+    "serverIp": "192.168.0.104"
+  },
+  {
+    "id": "srv-102",
+    "product": "Shared Cloud Hosting",
+    "domain": "tamim1280.shop",
+    "pricing": "",
+    "billingCycle": "Monthly",
+    "nextDueDate": "Wednesday, June 10th, 2026",
+    "status": "Active",
+    "serverIp": "192.168.0.104"
+  },
+  {
+    "id": "srv-103",
+    "product": "Shared Cloud Hosting",
+    "domain": "topup1280.shop",
+    "pricing": "",
+    "billingCycle": "Monthly",
+    "nextDueDate": "Wednesday, June 10th, 2026",
+    "status": "Active",
+    "serverIp": "192.168.0.104"
+  },
+  {
+    "id": "srv-104",
+    "product": "Shared Cloud Hosting",
+    "domain": "sitechai-cloud.net",
+    "pricing": "",
+    "billingCycle": "Monthly",
+    "nextDueDate": "Tuesday, August 18th, 2026",
+    "status": "Active",
+    "serverIp": "192.168.0.104"
+  }
+]

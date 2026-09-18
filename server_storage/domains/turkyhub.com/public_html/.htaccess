@@ -1,0 +1,3 @@
+# Sitechai Cloud Server Configuration for turkyhub.com
+RewriteEngine On
+DirectoryIndex index.html index.php

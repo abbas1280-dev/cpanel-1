@@ -1,0 +1,3 @@
+# Sitechai Cloud Server Configuration for topup1280.shop
+RewriteEngine On
+DirectoryIndex index.html index.php

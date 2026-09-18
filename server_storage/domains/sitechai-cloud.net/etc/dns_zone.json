@@ -1,0 +1,20 @@
+[
+  {
+    "id": "rec-1789698618371-1",
+    "name": "sitechai-cloud.net",
+    "type": "A",
+    "value": "192.168.0.104",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789698618371-2",
+    "name": "www.sitechai-cloud.net",
+    "type": "CNAME",
+    "value": "sitechai-cloud.net",
+    "ttl": 14400,
+    "status": "Active",
+    "managedBy": "Sitechai DNS"
+  }
+]
