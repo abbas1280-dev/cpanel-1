@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789702090913-1",
+    "id": "rec-1789706425233-1",
     "name": "topup1280.shop",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,12 +9,30 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090913-2",
+    "id": "rec-1789706425233-2",
     "name": "www.topup1280.shop",
     "type": "CNAME",
     "value": "topup1280.shop",
     "ttl": 14400,
     "status": "Active",
     "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789706425233-3",
+    "name": "topup1280.shop",
+    "type": "NS",
+    "value": "ns1.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425233-4",
+    "name": "topup1280.shop",
+    "type": "NS",
+    "value": "ns2.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
   }
 ]

@@ -72,7 +72,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090888-1",
+    "id": "rec-1789706425206-1",
     "name": "turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -81,7 +81,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090888-2",
+    "id": "rec-1789706425206-2",
     "name": "www.turkyhub.com",
     "type": "CNAME",
     "value": "turkyhub.com",
@@ -90,7 +90,25 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090892-1",
+    "id": "rec-1789706425206-3",
+    "name": "turkyhub.com",
+    "type": "NS",
+    "value": "ns1.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425206-4",
+    "name": "turkyhub.com",
+    "type": "NS",
+    "value": "ns2.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425210-1",
     "name": "api.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -99,7 +117,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090892-2",
+    "id": "rec-1789706425210-2",
     "name": "www.api.turkyhub.com",
     "type": "CNAME",
     "value": "api.turkyhub.com",
@@ -108,7 +126,25 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090896-1",
+    "id": "rec-1789706425210-3",
+    "name": "api.turkyhub.com",
+    "type": "NS",
+    "value": "ns1.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425210-4",
+    "name": "api.turkyhub.com",
+    "type": "NS",
+    "value": "ns2.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425214-1",
     "name": "shop.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -117,7 +153,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090896-2",
+    "id": "rec-1789706425214-2",
     "name": "www.shop.turkyhub.com",
     "type": "CNAME",
     "value": "shop.turkyhub.com",
@@ -126,7 +162,25 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090900-1",
+    "id": "rec-1789706425214-3",
+    "name": "shop.turkyhub.com",
+    "type": "NS",
+    "value": "ns1.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425214-4",
+    "name": "shop.turkyhub.com",
+    "type": "NS",
+    "value": "ns2.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425219-1",
     "name": "lsd.turkyhub.com",
     "type": "A",
     "value": "192.168.0.104",
@@ -135,12 +189,30 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789702090900-2",
+    "id": "rec-1789706425219-2",
     "name": "www.lsd.turkyhub.com",
     "type": "CNAME",
     "value": "lsd.turkyhub.com",
     "ttl": 14400,
     "status": "Active",
     "managedBy": "Sitechai DNS"
+  },
+  {
+    "id": "rec-1789706425219-3",
+    "name": "lsd.turkyhub.com",
+    "type": "NS",
+    "value": "ns1.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
+  },
+  {
+    "id": "rec-1789706425219-4",
+    "name": "lsd.turkyhub.com",
+    "type": "NS",
+    "value": "ns2.hoster1280.shop",
+    "ttl": 86400,
+    "status": "Active",
+    "managedBy": "hoster1280.shop DNS"
   }
 ]

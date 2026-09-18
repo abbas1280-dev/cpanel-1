@@ -46,6 +46,12 @@ export interface ServiceItem {
   nextDueDate: string;
   status: 'Active' | 'Suspended' | 'Pending' | 'Terminated' | 'Cancelled';
   serverIp: string;
+  phpVersion?: string;
+  quota?: string;
+  tenantUsername?: string;
+  nameservers?: string[];
+  sslActive?: boolean;
+  createdAt?: string;
 }
 
 export interface DomainItem {

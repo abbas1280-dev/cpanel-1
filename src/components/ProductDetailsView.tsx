@@ -77,8 +77,8 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({
   const [cpanelPassword, setCpanelPassword] = useState('Sec#Host2026!Key');
   const liveIp = serverMetrics?.serverIp || service.serverIp || '192.168.0.104';
   const serverHost = serverMetrics?.hostname ? `${serverMetrics.hostname.toLowerCase()}.local` : 'sitechai-cloud.local';
-  const ns1 = `ns1.${service.domain}`;
-  const ns2 = `ns2.${service.domain}`;
+  const ns1 = service.nameservers?.[0] || 'ns1.hoster1280.shop';
+  const ns2 = service.nameservers?.[1] || 'ns2.hoster1280.shop';
 
   const copyToClipboard = (text: string, keyName: string) => {
     navigator.clipboard.writeText(text);

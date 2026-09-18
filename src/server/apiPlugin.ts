@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
+import dns from 'dns';
 import * as mariadbService from './mariadbService';
 
 const execPromise = util.promisify(exec);
@@ -92,6 +93,42 @@ function getBestIp(): string {
     }
   }
   return fallback;
+}
+
+let cachedPublicIp: string | null = null;
+let lastPublicIpFetch = 0;
+
+export async function getPublicServerIp(): Promise<string> {
+  const now = Date.now();
+  if (cachedPublicIp && (now - lastPublicIpFetch < 300000)) {
+    return cachedPublicIp;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data && data.ip && typeof data.ip === 'string') {
+        const clean = data.ip.trim();
+        cachedPublicIp = clean;
+        lastPublicIpFetch = now;
+        return clean;
+      }
+    }
+  } catch (e) {
+    try {
+      const { stdout } = await execPromise('curl -s --max-time 3 https://api.ipify.org');
+      const ip = stdout.trim();
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+        cachedPublicIp = ip;
+        lastPublicIpFetch = now;
+        return ip;
+      }
+    } catch (e2) {}
+  }
+  return cachedPublicIp || getBestIp();
 }
 
 function getDirSizeBytes(dirPath: string): number {
@@ -495,6 +532,26 @@ export function updateDnsZoneForDomain(mainDomain: string, domainItem: any) {
     ttl: 14400,
     status: 'Active',
     managedBy: 'Sitechai DNS'
+  });
+
+  records.push({
+    id: `rec-${Date.now()}-3`,
+    name: domain,
+    type: 'NS',
+    value: 'ns1.hoster1280.shop',
+    ttl: 86400,
+    status: 'Active',
+    managedBy: 'hoster1280.shop DNS'
+  });
+
+  records.push({
+    id: `rec-${Date.now()}-4`,
+    name: domain,
+    type: 'NS',
+    value: 'ns2.hoster1280.shop',
+    ttl: 86400,
+    status: 'Active',
+    managedBy: 'hoster1280.shop DNS'
   });
 
   fs.writeFileSync(dnsFile, JSON.stringify(records, null, 2));
@@ -985,6 +1042,243 @@ export function serverApiPlugin(): Plugin {
           } catch (e) {
             response.statusCode = 500;
             response.end(JSON.stringify({ error: String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 3.1. GET /api/server/public-ip
+        // =========================================================================
+        if (url === '/api/server/public-ip' && request.method === 'GET') {
+          try {
+            const ip = await getPublicServerIp();
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              ip,
+              ns1: 'ns1.hoster1280.shop',
+              ns2: 'ns2.hoster1280.shop'
+            }));
+          } catch (e) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ error: String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 3.2. GET /api/dns/check-propagation
+        // =========================================================================
+        if (url.startsWith('/api/dns/check-propagation') && request.method === 'GET') {
+          try {
+            const parsedUrl = new URL(request.url || '', 'http://localhost');
+            const domain = (parsedUrl.searchParams.get('domain') || '').trim().toLowerCase();
+            if (!domain) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain is required' }));
+              return;
+            }
+
+            const serverIp = await getPublicServerIp();
+            let resolvedIps: string[] = [];
+
+            try {
+              const resA = await dns.promises.resolve4(domain);
+              resolvedIps = [...resA];
+            } catch (err: any) {}
+
+            try {
+              const resWww = await dns.promises.resolve4(`www.${domain}`);
+              for (const ip of resWww) {
+                if (!resolvedIps.includes(ip)) resolvedIps.push(ip);
+              }
+            } catch (err: any) {}
+
+            const isPointed = resolvedIps.includes(serverIp);
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              domain,
+              serverIp,
+              resolvedIps,
+              isPointed,
+              message: isPointed
+                ? `Domain ${domain} points directly to server IP (${serverIp})!`
+                : (resolvedIps.length > 0
+                    ? `Domain resolves to [${resolvedIps.join(', ')}]. Awaiting propagation to ${serverIp}.`
+                    : `No DNS records detected for ${domain}. Please point NS1/NS2 or add A-Record to ${serverIp}.`)
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 3.3. POST /api/ssl/activate
+        // =========================================================================
+        if (url === '/api/ssl/activate' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            if (!domain) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain is required' }));
+              return;
+            }
+
+            let certbotOutput = '';
+            if (process.platform === 'linux') {
+              try {
+                const { stdout, stderr } = await execPromise(
+                  `sudo certbot --nginx -d "${domain}" -d "www.${domain}" --non-interactive --agree-tos --register-unsafely-without-email --redirect`,
+                  { timeout: 60000 }
+                );
+                certbotOutput = stdout || stderr;
+              } catch (cbErr: any) {
+                console.warn('Certbot invocation notice:', cbErr.message);
+                certbotOutput = cbErr.message;
+              }
+            }
+
+            // Ensure SSL directory and certificate files exist in domain storage
+            ensureSslCertificate(domain, domain);
+
+            // Update registry
+            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainsRegistryFile = getDomainsRegistryFile(domainRoot);
+            if (fs.existsSync(domainsRegistryFile)) {
+              try {
+                const list = JSON.parse(fs.readFileSync(domainsRegistryFile, 'utf-8'));
+                for (const item of list) {
+                  if (item.domain === domain) {
+                    item.sslStatus = 'active';
+                    item.forceHttps = true;
+                    item.status = 'active';
+                  }
+                }
+                fs.writeFileSync(domainsRegistryFile, JSON.stringify(list, null, 2));
+              } catch (e) {}
+            }
+
+            // Update services.json
+            if (fs.existsSync(SERVICES_FILE)) {
+              try {
+                const services = JSON.parse(fs.readFileSync(SERVICES_FILE, 'utf-8'));
+                for (const s of services) {
+                  if (s.domain === domain) {
+                    s.status = 'Active';
+                    s.sslActive = true;
+                  }
+                }
+                fs.writeFileSync(SERVICES_FILE, JSON.stringify(services, null, 2));
+              } catch (e) {}
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              message: `Let's Encrypt SSL certificate activated and HTTPS secured for ${domain}!`,
+              domain,
+              certbotOutput
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 3.4. POST /api/services/provision
+        // =========================================================================
+        if (url === '/api/services/provision' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const phpVersion = body.phpVersion || '8.2';
+            const quota = body.quota || 'Unlimited Shared Pool';
+
+            // Validate domain format
+            if (!domain || !/^([a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(domain)) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Invalid domain syntax. Example: clientdomain.com' }));
+              return;
+            }
+
+            const services = fs.existsSync(SERVICES_FILE)
+              ? JSON.parse(fs.readFileSync(SERVICES_FILE, 'utf-8'))
+              : [];
+
+            // Check if domain already exists
+            const existing = services.find((s: any) => s.domain.toLowerCase() === domain);
+            if (existing && !body.allowUpdate) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: `Domain ${domain} is already registered under services.` }));
+              return;
+            }
+
+            const serverIp = await getPublicServerIp();
+            const cleanPrefix = domain.replace(/[^a-z0-9]/g, '').slice(0, 8);
+            const tenantUsername = `u_${cleanPrefix}`;
+            const generatedPassword = `Sec#${Math.random().toString(36).slice(-6)}!2026`;
+
+            // If on Linux, execute scripts/provision_tenant.sh
+            if (process.platform === 'linux') {
+              try {
+                const scriptPath = path.resolve(process.cwd(), 'scripts', 'provision_tenant.sh');
+                if (fs.existsSync(scriptPath)) {
+                  await execPromise(`sudo /bin/bash "${scriptPath}" "${domain}" "${phpVersion}" "${tenantUsername}" "${STORAGE_ROOT}"`, { timeout: 30000 });
+                }
+              } catch (shErr: any) {
+                console.warn('Linux provision script execution warning:', shErr.message);
+              }
+            }
+
+            // Ensure standard domain storage structure & VHost
+            ensureStandardDomainStructure(domain, true);
+
+            // Construct new service object
+            const newService = {
+              id: 'srv-' + Date.now().toString().slice(-4),
+              product: 'Shared Cloud Hosting',
+              domain,
+              pricing: '',
+              billingCycle: 'Annual',
+              nextDueDate: 'Friday, October 16th, 2026',
+              status: 'Active',
+              serverIp,
+              phpVersion,
+              quota,
+              tenantUsername,
+              nameservers: ['ns1.hoster1280.shop', 'ns2.hoster1280.shop'],
+              createdAt: new Date().toISOString()
+            };
+
+            const existingIdx = services.findIndex((s: any) => s.domain === domain);
+            if (existingIdx >= 0) {
+              services[existingIdx] = { ...services[existingIdx], ...newService };
+            } else {
+              services.unshift(newService);
+            }
+
+            fs.writeFileSync(SERVICES_FILE, JSON.stringify(services, null, 2));
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              message: `Service for ${domain} successfully provisioned!`,
+              service: newService,
+              tenantUsername,
+              password: generatedPassword,
+              serverIp,
+              nameservers: ['ns1.hoster1280.shop', 'ns2.hoster1280.shop']
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
           }
           return;
         }

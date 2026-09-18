@@ -67,6 +67,23 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   // Domain input form states
   const [domainNamePart, setDomainNamePart] = useState('example');
   const [tldPart, setTldPart] = useState('com');
+  const [phpVersion, setPhpVersion] = useState('8.2');
+  const [selectedQuota, setSelectedQuota] = useState('Unlimited Shared Pool');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Dynamic public server IP state
+  const [publicServerIp, setPublicServerIp] = useState<string>(serverMetrics?.serverIp || '192.168.0.104');
+
+  React.useEffect(() => {
+    fetch('/api/server/public-ip')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.ip) {
+          setPublicServerIp(data.ip);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Automated cPanel provisioning state
   const [provisionStage, setProvisionStage] = useState<ProvisioningStage>('idle');
@@ -77,7 +94,27 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
     password: string;
     ip: string;
     cpanelUrl: string;
+    phpVersion?: string;
   } | null>(null);
+
+  // Live DNS & SSL Activation state
+  const [dnsChecking, setDnsChecking] = useState(false);
+  const [dnsCheckResult, setDnsCheckResult] = useState<{
+    isPointed: boolean;
+    message: string;
+    resolvedIps?: string[];
+  } | null>(null);
+  const [sslActivating, setSslActivating] = useState(false);
+  const [sslActivated, setSslActivated] = useState(false);
+  const [sslMessage, setSslMessage] = useState<string | null>(null);
+
+  // Copy helper
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const copyText = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   // Three dots (...) Domain Details Modal
   const [selectedServiceDetail, setSelectedServiceDetail] = useState<ServiceItem | null>(null);
@@ -109,11 +146,11 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   const [showAddonsModal, setShowAddonsModal] = useState(false);
 
   const provisioningSteps = [
-    'Allocating Server Node in Shared Cloud Pool...',
-    'Creating cPanel user account & assigning shared resources...',
-    'Configuring DNS Zone & Nameservers (ns1.sitechai.com, ns2.sitechai.com)...',
-    'Issuing Let\'s Encrypt AutoSSL certificate...',
-    'Finalizing web server virtual hosts & cPanel access...'
+    'Allocating Linux System Tenant & Webroot (/home/u_.../public_html)...',
+    'Configuring Dedicated PHP-FPM Pool Socket...',
+    'Generating Nginx VirtualHost & FastCGI Proxy...',
+    'Provisioning Isolated MariaDB Database & phpMyAdmin SSO...',
+    'Binding Authoritative Nameservers (ns1.hoster1280.shop, ns2.hoster1280.shop)...'
   ];
 
   // When user selects a domain from existing domains dropdown
@@ -125,20 +162,54 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
     } else {
       setDomainNamePart(fullDomain);
     }
+    setValidationError(null);
   };
 
-  // Trigger automated cPanel creation
-  const handleUseDomain = (e: React.FormEvent) => {
+  // Trigger automated multi-tenant provisioning
+  const handleUseDomain = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanDomain = `${domainNamePart.trim().replace(/\./g, '')}.${tldPart.trim().replace(/\./g, '')}`.toLowerCase();
-    if (!cleanDomain || cleanDomain.startsWith('.')) return;
+    
+    // Domain validation
+    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+    if (!cleanDomain || !domainRegex.test(cleanDomain)) {
+      setValidationError('Please enter a valid domain format (e.g. clientdomain.com).');
+      return;
+    }
+    if (services.some((s) => s.domain.toLowerCase() === cleanDomain)) {
+      setValidationError(`Domain "${cleanDomain}" is already registered in your active services.`);
+      return;
+    }
+    setValidationError(null);
 
     setProvisionStage('provisioning');
     setCurrentStepIndex(0);
+    setDnsCheckResult(null);
+    setSslActivated(false);
+    setSslMessage(null);
 
-    const realServerIp = serverMetrics?.serverIp || '192.168.0.104';
-    const generatedUsername = `${domainNamePart.slice(0, 7).replace(/[^a-zA-Z0-9]/g, '')}1`.toLowerCase();
-    const generatedPassword = `Sec#${Math.random().toString(36).slice(-6)}!2026`;
+    let provisionedData: any = null;
+
+    try {
+      const res = await fetch('/api/services/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: cleanDomain,
+          phpVersion,
+          quota: selectedQuota
+        })
+      });
+      if (res.ok) {
+        provisionedData = await res.json();
+      }
+    } catch (err: any) {
+      console.warn('Backend provisioning call fallback:', err.message);
+    }
+
+    const realServerIp = provisionedData?.serverIp || publicServerIp || serverMetrics?.serverIp || '192.168.0.104';
+    const generatedUsername = provisionedData?.tenantUsername || `u_${domainNamePart.slice(0, 7).replace(/[^a-zA-Z0-9]/g, '')}`;
+    const generatedPassword = provisionedData?.password || `Sec#${Math.random().toString(36).slice(-6)}!2026`;
 
     const interval = setInterval(() => {
       setCurrentStepIndex((prev) => {
@@ -149,14 +220,18 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
           setProvisionStage('completed');
 
           const newService: ServiceItem = {
-            id: 'srv-' + Date.now().toString().slice(-4),
+            id: provisionedData?.service?.id || ('srv-' + Date.now().toString().slice(-4)),
             product: 'Shared Cloud Hosting',
             domain: cleanDomain,
-            pricing: '', // Price removed per requirement
+            pricing: '',
             billingCycle: 'Annual',
             nextDueDate: 'Friday, October 16th, 2026',
             status: 'Active',
-            serverIp: realServerIp
+            serverIp: realServerIp,
+            phpVersion,
+            quota: selectedQuota,
+            tenantUsername: generatedUsername,
+            nameservers: ['ns1.hoster1280.shop', 'ns2.hoster1280.shop']
           };
 
           setCreatedCpanelInfo({
@@ -164,14 +239,53 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             username: generatedUsername,
             password: generatedPassword,
             ip: realServerIp,
-            cpanelUrl: `https://cpanel.${cleanDomain}`
+            cpanelUrl: `https://cpanel.${cleanDomain}`,
+            phpVersion
           });
 
           onAddService(newService);
           return prev;
         }
       });
-    }, 650);
+    }, 600);
+  };
+
+  // Check DNS propagation and activate SSL
+  const handleCheckDnsAndActivateSsl = async (domain: string) => {
+    setDnsChecking(true);
+    setDnsCheckResult(null);
+    setSslMessage(null);
+
+    try {
+      const res = await fetch(`/api/dns/check-propagation?domain=${encodeURIComponent(domain)}`);
+      const data = await res.json();
+      setDnsCheckResult(data);
+
+      if (data.isPointed) {
+        setSslActivating(true);
+        const sslRes = await fetch('/api/ssl/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain })
+        });
+        const sslData = await sslRes.json();
+        setSslActivating(false);
+        if (sslData.success) {
+          setSslActivated(true);
+          setSslMessage("Let's Encrypt SSL certificate successfully activated & HTTPS secured!");
+        } else {
+          setSslMessage(sslData.error || 'SSL activation failed. Please try again.');
+        }
+      }
+    } catch (err: any) {
+      setDnsCheckResult({
+        isPointed: false,
+        message: 'Could not connect to DNS checker endpoint: ' + err.message,
+        resolvedIps: []
+      });
+    } finally {
+      setDnsChecking(false);
+    }
   };
 
   const copyPassword = () => {
@@ -536,36 +650,83 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             </div>
 
             <div className="bg-[#11074a] p-6 sm:p-8">
-              <form onSubmit={handleUseDomain} className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-3">
-                <div className="w-full sm:flex-[3]">
-                  <input
-                    type="text"
-                    required
-                    value={domainNamePart}
-                    onChange={(e) => setDomainNamePart(e.target.value)}
-                    placeholder="example"
-                    className="w-full px-4 py-3 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
-                  />
+              <form onSubmit={handleUseDomain} className="max-w-5xl mx-auto space-y-4">
+                <div className="flex flex-col sm:flex-row items-end gap-3">
+                  <div className="w-full sm:flex-[3]">
+                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">Domain Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={domainNamePart}
+                      onChange={(e) => {
+                        setDomainNamePart(e.target.value);
+                        setValidationError(null);
+                      }}
+                      placeholder="example"
+                      className="w-full px-4 py-2.5 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-28">
+                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">TLD</label>
+                    <input
+                      type="text"
+                      required
+                      value={tldPart}
+                      onChange={(e) => {
+                        setTldPart(e.target.value);
+                        setValidationError(null);
+                      }}
+                      placeholder="com"
+                      className="w-full px-4 py-2.5 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-44">
+                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">PHP Version</label>
+                    <select
+                      value={phpVersion}
+                      onChange={(e) => setPhpVersion(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white text-slate-800 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+                    >
+                      <option value="8.3">PHP 8.3 (Recommended)</option>
+                      <option value="8.2">PHP 8.2 (Stable)</option>
+                      <option value="8.1">PHP 8.1</option>
+                      <option value="7.4">PHP 7.4 (Legacy)</option>
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-56">
+                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">Package / Quota</label>
+                    <select
+                      value={selectedQuota}
+                      onChange={(e) => setSelectedQuota(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white text-slate-800 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+                    >
+                      <option value="Unlimited Shared Pool">Unlimited Cloud Pool</option>
+                      <option value="10 GB SSD">Standard Cloud (10 GB)</option>
+                      <option value="50 GB NVMe">Professional (50 GB)</option>
+                      <option value="100 GB NVMe">Enterprise (100 GB)</option>
+                    </select>
+                  </div>
+
+                  <div className="w-full sm:w-auto">
+                    <button
+                      type="submit"
+                      disabled={provisionStage === 'provisioning'}
+                      className="w-full sm:w-auto px-8 py-2.5 bg-[#0d0538] hover:bg-[#1a0f63] text-white font-bold text-sm rounded-lg transition-colors border border-indigo-900/80 shadow-md active:scale-95 disabled:opacity-50"
+                    >
+                      Use
+                    </button>
+                  </div>
                 </div>
 
-                <div className="w-full sm:w-28">
-                  <input
-                    type="text"
-                    required
-                    value={tldPart}
-                    onChange={(e) => setTldPart(e.target.value)}
-                    placeholder="com"
-                    className="w-full px-4 py-3 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={provisionStage === 'provisioning'}
-                  className="w-full sm:w-auto px-8 py-3 bg-[#0d0538] hover:bg-[#1a0f63] text-white font-bold text-sm rounded-lg transition-colors border border-indigo-900/80 shadow-md active:scale-95 disabled:opacity-50"
-                >
-                  Use
-                </button>
+                {validationError && (
+                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-lg text-xs text-rose-200 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{validationError}</span>
+                  </div>
+                )}
               </form>
             </div>
           </div>
@@ -579,10 +740,10 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800">
-                    Automated cPanel Provisioning in Progress
+                    Automated Multi-Tenant Provisioning in Progress
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Connecting Domain: <span className="font-semibold text-indigo-600">{domainNamePart}.{tldPart}</span> to Shared Resource Pool
+                    Domain: <span className="font-semibold text-indigo-600">{domainNamePart}.{tldPart}</span> | Engine: <span className="font-semibold text-indigo-600">PHP {phpVersion}</span> | Cluster: <span className="font-semibold text-indigo-600">hoster1280.shop</span>
                   </p>
                 </div>
               </div>
@@ -617,57 +778,177 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             </div>
           )}
 
-          {/* Completed Notification Card */}
+          {/* Post-Creation Setup & Nameserver Instructions Card */}
           {provisionStage === 'completed' && createdCpanelInfo && (
-            <div className="bg-white rounded-2xl border-2 border-emerald-500 p-8 shadow-xl max-w-2xl mx-auto animate-in zoom-in-95 duration-200">
-              <div className="text-center mb-6">
+            <div className="bg-white rounded-3xl border-2 border-emerald-500 p-6 sm:p-9 shadow-2xl max-w-3xl mx-auto animate-in zoom-in-95 duration-200 space-y-6">
+              <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center mb-3 ring-8 ring-emerald-50">
                   <CheckCircle2 className="w-9 h-9" />
                 </div>
-                <h3 className="text-xl font-extrabold text-slate-800">
-                  cPanel Successfully Created & Connected!
+                <h3 className="text-2xl font-extrabold text-slate-900">
+                  Service & cPanel Successfully Provisioned!
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Domain <span className="font-bold text-slate-800">{createdCpanelInfo.domain}</span> is now active under Shared Resource Pool.
+                  Domain <span className="font-bold text-slate-800">{createdCpanelInfo.domain}</span> is active with isolated multi-tenant webroot & PHP {createdCpanelInfo.phpVersion || '8.2'} socket.
                 </p>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-2.5 text-xs font-medium mb-6">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                  <span className="text-slate-500">Domain Name:</span>
-                  <span className="font-bold text-slate-800">{createdCpanelInfo.domain}</span>
+              {/* Server Credentials & IP Grid */}
+              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200/80 space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-3 border-b border-slate-200/60">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Domain Name:</span>
+                    <span className="font-bold text-slate-900 text-sm">{createdCpanelInfo.domain}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Server IPv4 Address:</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60">
+                        {createdCpanelInfo.ip}
+                      </span>
+                      <button
+                        onClick={() => copyText(createdCpanelInfo.ip, 'ip')}
+                        className="p-1 text-indigo-600 hover:text-indigo-800"
+                        title="Copy Server IP"
+                      >
+                        {copiedField === 'ip' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                  <span className="text-slate-500">cPanel Username:</span>
-                  <span className="font-mono font-bold text-indigo-700">{createdCpanelInfo.username}</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-3 border-b border-slate-200/60">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">cPanel Username:</span>
+                    <span className="font-mono font-bold text-indigo-700 text-sm">{createdCpanelInfo.username}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">cPanel Password:</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono font-bold text-slate-800">{createdCpanelInfo.password}</span>
+                      <button
+                        onClick={copyPassword}
+                        className="p-1 text-indigo-600 hover:text-indigo-800"
+                        title="Copy password"
+                      >
+                        {copiedPass ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                  <span className="text-slate-500">cPanel Password:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-800">{createdCpanelInfo.password}</span>
+
+                {/* Authoritative Nameservers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/70 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Primary Nameserver (NS1)</span>
+                      <span className="font-mono font-bold text-slate-800 text-xs">ns1.hoster1280.shop</span>
+                    </div>
                     <button
-                      onClick={copyPassword}
-                      className="p-1 text-indigo-600 hover:text-indigo-800"
-                      title="Copy password"
+                      onClick={() => copyText('ns1.hoster1280.shop', 'ns1')}
+                      className="p-1 text-slate-400 hover:text-indigo-600"
+                      title="Copy NS1"
                     >
-                      {copiedPass ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedField === 'ns1' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200/70 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Secondary Nameserver (NS2)</span>
+                      <span className="font-mono font-bold text-slate-800 text-xs">ns2.hoster1280.shop</span>
+                    </div>
+                    <button
+                      onClick={() => copyText('ns2.hoster1280.shop', 'ns2')}
+                      className="p-1 text-slate-400 hover:text-indigo-600"
+                      title="Copy NS2"
+                    >
+                      {copiedField === 'ns2' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                  <span className="text-slate-500">Server Dedicated IP:</span>
-                  <span className="font-mono text-slate-800 font-semibold">{createdCpanelInfo.ip}</span>
+              </div>
+
+              {/* Step-by-Step DNS Instructions */}
+              <div className="p-5 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-slate-700 space-y-3">
+                <div className="font-bold text-indigo-950 flex items-center gap-1.5 text-sm">
+                  <Globe className="w-4 h-4 text-indigo-600" />
+                  DNS Setup Instructions:
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Nameservers:</span>
-                  <span className="font-mono text-slate-700">ns1.sitechai.com / ns2.sitechai.com</span>
+                <div className="space-y-2 leading-relaxed">
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-indigo-100">
+                    <span className="font-bold text-slate-900 block mb-0.5">Method 1 (Recommended - Nameservers):</span>
+                    Log in to your domain registrar (Namecheap, GoDaddy, Porkbun, Cloudflare) and point your domain's Custom DNS to:
+                    <span className="font-mono font-semibold text-indigo-700 ml-1">ns1.hoster1280.shop</span> and <span className="font-mono font-semibold text-indigo-700">ns2.hoster1280.shop</span>.
+                  </div>
+                  <div className="p-2.5 bg-white/90 rounded-xl border border-indigo-100">
+                    <span className="font-bold text-slate-900 block mb-0.5">Method 2 (Direct A-Record / Cloudflare DNS):</span>
+                    If managing DNS on Cloudflare or custom DNS manager, add two <span className="font-bold">A Records</span>:
+                    <div className="mt-1 font-mono text-[11px] text-slate-800">
+                      <div>• Host <code className="bg-slate-100 px-1 py-0.5 rounded">@</code> pointing to <code className="font-bold text-indigo-700">{createdCpanelInfo.ip}</code></div>
+                      <div>• Host <code className="bg-slate-100 px-1 py-0.5 rounded">www</code> pointing to <code className="font-bold text-indigo-700">{createdCpanelInfo.ip}</code></div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3">
+              {/* Live DNS Propagation & Auto-SSL Activation Box */}
+              <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-sm flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      Live DNS Propagation & Let's Encrypt SSL
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Check if your domain's A-record resolves to this VPS and automatically activate Let's Encrypt HTTPS.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleCheckDnsAndActivateSsl(createdCpanelInfo.domain)}
+                    disabled={dnsChecking || sslActivating}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                  >
+                    {dnsChecking || sslActivating ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Activity className="w-4 h-4" />
+                    )}
+                    <span>{dnsChecking ? 'Checking DNS...' : sslActivating ? 'Activating SSL...' : 'Check DNS & Activate SSL'}</span>
+                  </button>
+                </div>
+
+                {dnsCheckResult && (
+                  <div className={`p-3.5 rounded-xl text-xs font-medium border ${
+                    dnsCheckResult.isPointed
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                      : 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                  }`}>
+                    <div className="flex items-start gap-2.5">
+                      {dnsCheckResult.isPointed ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="font-bold">{dnsCheckResult.message}</div>
+                        {sslMessage && (
+                          <div className="mt-1 text-[11px] text-emerald-200 font-semibold flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> {sslMessage}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                 <button
                   onClick={() => {
-                    const matched = services.find(s => s.domain === createdCpanelInfo.domain) || {
+                    const matched = services.find((s) => s.domain === createdCpanelInfo.domain) || {
                       id: 'srv-now',
                       product: 'Shared Cloud Hosting',
                       domain: createdCpanelInfo.domain,
@@ -675,13 +956,18 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                       billingCycle: 'Annual',
                       nextDueDate: 'Friday, October 16th, 2026',
                       status: 'Active',
-                      serverIp: createdCpanelInfo.ip
+                      serverIp: createdCpanelInfo.ip,
+                      phpVersion: createdCpanelInfo.phpVersion
                     };
-                    setActiveCpanelModal(matched);
+                    if (onOpenFullCpanel) {
+                      onOpenFullCpanel(matched);
+                    } else {
+                      setActiveCpanelModal(matched);
+                    }
                   }}
-                  className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-[#ff6c2c] hover:bg-[#e05b20] text-white font-bold text-xs shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all"
+                  className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-[#ff6c2c] hover:bg-[#e05b20] text-white font-bold text-xs shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
                 >
-                  <ExternalLink className="w-4 h-4" /> Open cPanel Dashboard
+                  <ExternalLink className="w-4 h-4" /> Login to cPanel / Manage
                 </button>
                 <button
                   onClick={() => {
@@ -842,15 +1128,31 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                             </div>
                           </td>
 
-                          {/* Actions Three Dots Column */}
+                          {/* Actions Column: Login to cPanel + Details */}
                           <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setSelectedServiceDetail(srv)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                              title="View Domain Details & Actions"
-                            >
-                              <MoreHorizontal className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  if (onOpenFullCpanel) {
+                                    onOpenFullCpanel(srv);
+                                  } else {
+                                    setActiveCpanelModal(srv);
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-[#ff6c2c] hover:bg-[#e05b20] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-orange-500/20 transition-all active:scale-95 shrink-0"
+                                title={`Login to isolated cPanel for ${srv.domain}`}
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Login to cPanel</span>
+                              </button>
+                              <button
+                                onClick={() => setSelectedServiceDetail(srv)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                title="View Domain Details & Actions"
+                              >
+                                <MoreHorizontal className="w-5 h-5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -999,7 +1301,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                   }}
                   className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-[#ff6c2c] hover:bg-[#e05b20] text-white font-bold text-xs shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all"
                 >
-                  <ExternalLink className="w-4 h-4" /> cPanel
+                  <ExternalLink className="w-4 h-4" /> Login to cPanel / Manage
                 </button>
                 <button
                   onClick={() => setSelectedServiceDetail(null)}

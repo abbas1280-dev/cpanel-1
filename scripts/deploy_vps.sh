@@ -170,6 +170,12 @@ npx pm2 delete cpanel-app 2>/dev/null || true
 npx pm2 start "npx vite --port 5173 --host 0.0.0.0" --name "cpanel-app"
 npx pm2 save
 
+# 8. Setup Sudoers & Executable Permissions for Multi-Tenant Provisioning
+echo "[+] Configuring sudoers and provisioning permissions..."
+sudo cp "$REPO_DIR/scripts/sudoers_provisioning" /etc/sudoers.d/cpanel-provisioning 2>/dev/null || true
+sudo chmod 0440 /etc/sudoers.d/cpanel-provisioning 2>/dev/null || true
+sudo chmod +x "$REPO_DIR/scripts/provision_tenant.sh" "$REPO_DIR/scripts/setup_nameservers.sh" 2>/dev/null || true
+
 echo "=========================================================="
 echo " Deployment Successfully Completed! "
 echo "=========================================================="
