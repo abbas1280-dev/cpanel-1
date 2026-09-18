@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+if ((isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+    (isset($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false)) {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+
 ini_set('session.use_cookies', '1');
 session_set_cookie_params([
     'lifetime' => 0,

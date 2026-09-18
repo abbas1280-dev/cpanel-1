@@ -157,7 +157,9 @@ fi
 echo "[+] Installing NPM dependencies..."
 npm install
 
-echo "[+] Deploying sso.php to phpMyAdmin..."
+echo "[+] Deploying config.inc.php and sso.php to phpMyAdmin..."
+sudo cp "$REPO_DIR/scripts/config.inc.php" /usr/share/phpmyadmin/config.inc.php
+sudo chmod 644 /usr/share/phpmyadmin/config.inc.php
 sudo cp "$REPO_DIR/scripts/sso.php" /usr/share/phpmyadmin/sso.php
 sudo chmod 644 /usr/share/phpmyadmin/sso.php
 
