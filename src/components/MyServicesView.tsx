@@ -153,9 +153,6 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Three dots (...) Domain Details Modal
-  const [selectedServiceDetail, setSelectedServiceDetail] = useState<ServiceItem | null>(null);
-
   // Simulated cPanel interactive modal
   const [activeCpanelModal, setActiveCpanelModal] = useState<ServiceItem | null>(null);
   const [copiedPass, setCopiedPass] = useState(false);
@@ -1186,17 +1183,26 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                         <tr
                           key={srv.id}
                           className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
-                          onClick={() => setSelectedServiceDetail(srv)}
+                          onClick={() => setViewingProductDetails(srv)}
                         >
-                          {/* Product / Service & Domain Name (No individual GB limit shown) */}
+                          {/* Product / Service & Direct Navigation Domain Link */}
                           <td className="py-4 px-6">
-                            <div className="font-bold text-slate-900 text-sm">
-                              {srv.product.includes('Hosting') ? 'Shared Cloud Hosting' : srv.product}
-                            </div>
-                            <div className="text-xs text-indigo-600 font-semibold mt-0.5 flex items-center gap-1">
-                              <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                              {srv.domain}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingProductDetails(srv);
+                              }}
+                              className="text-left group/link block focus:outline-none"
+                            >
+                              <div className="font-bold text-slate-900 text-sm group-hover/link:text-indigo-600 transition-colors">
+                                {srv.product.includes('Hosting') ? 'Shared Cloud Hosting' : srv.product}
+                              </div>
+                              <div className="text-xs text-indigo-600 font-semibold mt-0.5 flex items-center gap-1.5 group-hover/link:text-indigo-800 transition-colors">
+                                <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="group-hover/link:underline">{srv.domain}</span>
+                              </div>
+                            </button>
                           </td>
 
                           {/* Next Due Date */}
@@ -1272,7 +1278,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                                     <button
                                       onClick={() => {
                                         setOpenDropdownId(null);
-                                        setSelectedServiceDetail(srv);
+                                        setViewingProductDetails(srv);
                                       }}
                                       className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
                                     >
@@ -1357,120 +1363,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* THREE DOTS (...) DOMAIN DETAILS MODAL (READY FOR FUTURE CUSTOM INSTRUCTIONS) */}
-      {/* ========================================================================= */}
-      {selectedServiceDetail && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                  <Globe className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    {selectedServiceDetail.domain}
-                  </h3>
-                  <span className="text-xs text-slate-400 font-mono">
-                    Service ID: {selectedServiceDetail.id}
-                  </span>
-                </div>
-              </div>
 
-              <button
-                onClick={() => setSelectedServiceDetail(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Service & Domain Details Grid */}
-            <div className="space-y-4">
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Domain Name:</span>
-                  <span className="font-bold text-slate-800">{selectedServiceDetail.domain}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Resource Policy:</span>
-                  <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/50">
-                    Shared Server Resource Pool (No Individual Limit)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Dedicated Server IP:</span>
-                  <span className="font-mono text-slate-800 font-semibold">{serverMetrics?.serverIp || selectedServiceDetail.serverIp}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Next Due Date:</span>
-                  <span className="font-semibold text-slate-700">{selectedServiceDetail.nextDueDate}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">Service Status:</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold ${
-                    selectedServiceDetail.status === 'Active'
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                    {selectedServiceDetail.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 font-medium">AutoSSL Certificate:</span>
-                  <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Active (256-bit TLS)
-                  </span>
-                </div>
-              </div>
-
-              {/* Ready for User Instructions Note */}
-              <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-100 flex items-start gap-3">
-                <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-indigo-900 leading-relaxed">
-                  <span className="font-bold block text-indigo-950 mb-0.5">Custom Action Ready</span>
-                  এই ডোমেইনের ডিটেইল এখানে প্রদর্শিত হচ্ছে। আপনি পরবর্তী নির্দেশে যেভাবে বলবেন (যেমন: ডিএনএস এডিট, প্যাকেজ আপগ্রেড, পাসওয়ার্ড রিসেট ইত্যাদি), সেই অনুযায়ী এখানে পরবর্তী অ্যাকশন যুক্ত করা হবে।
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
-                <button
-                  onClick={() => {
-                    setViewingProductDetails(selectedServiceDetail);
-                    setSelectedServiceDetail(null);
-                  }}
-                  className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all"
-                >
-                  <Eye className="w-4 h-4" /> View Full Details
-                </button>
-                <button
-                  onClick={() => {
-                    if (onOpenFullCpanel) {
-                      onOpenFullCpanel(selectedServiceDetail);
-                    } else {
-                      setActiveCpanelModal(selectedServiceDetail);
-                    }
-                    setSelectedServiceDetail(null);
-                  }}
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-[#ff6c2c] hover:bg-[#e05b20] text-white font-bold text-xs shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all"
-                >
-                  <ExternalLink className="w-4 h-4" /> Login to cPanel / Manage
-                </button>
-                <button
-                  onClick={() => setSelectedServiceDetail(null)}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* SAFE SERVICE DELETION MODAL (REQUIRES TYPING "CONFIRM") */}
