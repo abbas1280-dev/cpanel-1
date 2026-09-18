@@ -7,7 +7,7 @@
     "billingCycle": "Monthly",
     "nextDueDate": "Tuesday, February 10th, 2027",
     "status": "Active",
-    "serverIp": "192.168.0.104"
+    "serverIp": "208.72.218.129"
   },
   {
     "id": "srv-102",
@@ -17,7 +17,7 @@
     "billingCycle": "Monthly",
     "nextDueDate": "Wednesday, June 10th, 2026",
     "status": "Active",
-    "serverIp": "192.168.0.104"
+    "serverIp": "208.72.218.129"
   },
   {
     "id": "srv-103",
@@ -27,7 +27,7 @@
     "billingCycle": "Monthly",
     "nextDueDate": "Wednesday, June 10th, 2026",
     "status": "Active",
-    "serverIp": "192.168.0.104"
+    "serverIp": "208.72.218.129"
   },
   {
     "id": "srv-104",
@@ -37,6 +37,6 @@
     "billingCycle": "Monthly",
     "nextDueDate": "Tuesday, August 18th, 2026",
     "status": "Active",
-    "serverIp": "192.168.0.104"
+    "serverIp": "208.72.218.129"
   }
 ]

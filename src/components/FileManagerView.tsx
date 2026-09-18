@@ -521,7 +521,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     } else if (webPath === 'public_html') {
       webPath = '';
     }
-    const liveUrl = `/sites/${encodeURIComponent(activeDomain)}/${webPath}`;
+    const liveUrl = `https://${activeDomain}/${webPath}`;
     window.open(liveUrl, '_blank');
   };
 

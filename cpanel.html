@@ -2350,7 +2350,7 @@
 
                 const domEl = document.getElementById('infoPrimaryDomain');
                 if (domEl) {
-                    domEl.innerHTML = `<a href="/sites/${data.primaryDomain}/" target="_blank">${data.primaryDomain} <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 11px;"></i></a>`;
+                    domEl.innerHTML = `<a href="https://${data.primaryDomain}" target="_blank" rel="noopener noreferrer">${data.primaryDomain} <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 11px;"></i></a>`;
                 }
 
                 const ipEl = document.getElementById('infoSharedIp');

@@ -81,43 +81,45 @@ async function getRealDiskStats() {
 }
 
 function getBestIp(): string {
+  if (cachedPublicIp && !cachedPublicIp.startsWith('169.254.') && !cachedPublicIp.startsWith('127.')) {
+    return cachedPublicIp;
+  }
+  try {
+    const s = getSettingsData();
+    if (s && s.serverIp && /^\d+\.\d+\.\d+\.\d+$/.test(s.serverIp) && !s.serverIp.startsWith('169.254.') && !s.serverIp.startsWith('127.')) {
+      return s.serverIp;
+    }
+  } catch (e) {}
+
   const nets = os.networkInterfaces();
-  let fallback = '127.0.0.1';
-  
-  // First look for physical/Wi-Fi/Ethernet 192.168.x.x or 10.x.x.x
   for (const name of Object.keys(nets)) {
-    if (name.toLowerCase().includes('vethernet') || name.toLowerCase().includes('virtual')) continue;
+    if (name.toLowerCase().includes('vethernet') || name.toLowerCase().includes('virtual') || name.toLowerCase().includes('docker')) continue;
     for (const net of nets[name] || []) {
-      if (net.family === 'IPv4' && !net.internal) {
-        if (net.address.startsWith('192.168.') || net.address.startsWith('10.')) {
-          return net.address;
-        }
-        fallback = net.address;
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.') && !net.address.startsWith('127.')) {
+        return net.address;
       }
     }
   }
-  
-  // If no 192.168 or 10 found, check any non-internal IPv4
-  if (fallback === '127.0.0.1') {
-    for (const name of Object.keys(nets)) {
-      for (const net of nets[name] || []) {
-        if (net.family === 'IPv4' && !net.internal) {
-          return net.address;
-        }
-      }
-    }
-  }
-  return fallback;
+  return '208.72.218.129';
 }
 
-let cachedPublicIp: string | null = null;
+let cachedPublicIp: string | null = '208.72.218.129';
 let lastPublicIpFetch = 0;
 
 export async function getPublicServerIp(): Promise<string> {
   const now = Date.now();
-  if (cachedPublicIp && (now - lastPublicIpFetch < 300000)) {
+  if (cachedPublicIp && cachedPublicIp !== '127.0.0.1' && !cachedPublicIp.startsWith('169.254.') && (now - lastPublicIpFetch < 300000)) {
     return cachedPublicIp;
   }
+
+  // Check saved settings first
+  try {
+    const s = getSettingsData();
+    if (s && s.serverIp && /^\d+\.\d+\.\d+\.\d+$/.test(s.serverIp) && !s.serverIp.startsWith('169.254.') && !s.serverIp.startsWith('127.')) {
+      cachedPublicIp = s.serverIp;
+    }
+  } catch (e) {}
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
@@ -127,23 +129,25 @@ export async function getPublicServerIp(): Promise<string> {
       const data: any = await res.json();
       if (data && data.ip && typeof data.ip === 'string') {
         const clean = data.ip.trim();
-        cachedPublicIp = clean;
-        lastPublicIpFetch = now;
-        return clean;
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(clean) && !clean.startsWith('169.254.') && !clean.startsWith('127.')) {
+          cachedPublicIp = clean;
+          lastPublicIpFetch = now;
+          return clean;
+        }
       }
     }
   } catch (e) {
     try {
-      const { stdout } = await execPromise('curl -s --max-time 3 https://api.ipify.org');
+      const { stdout } = await execPromise('curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://icanhazip.com');
       const ip = stdout.trim();
-      if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(ip) && !ip.startsWith('169.254.') && !ip.startsWith('127.')) {
         cachedPublicIp = ip;
         lastPublicIpFetch = now;
         return ip;
       }
     } catch (e2) {}
   }
-  return cachedPublicIp || getBestIp();
+  return cachedPublicIp || '208.72.218.129';
 }
 
 function getDirSizeBytes(dirPath: string): number {
@@ -444,58 +448,133 @@ server {
   return { apachePath, nginxPath };
 }
 
+function getPhpFpmSocket(): string {
+  try {
+    if (fs.existsSync('/run/php')) {
+      const files = fs.readdirSync('/run/php');
+      const sock = files.find(f => f.startsWith('php') && f.endsWith('.sock') && f.includes('fpm'));
+      if (sock) return `/run/php/${sock}`;
+    }
+  } catch (e) {}
+  return '/run/php/php8.2-fpm.sock';
+}
+
 export async function syncLiveNginxVHost(mainDomain: string, domain: string, relDocRoot: string, forceHttps: boolean): Promise<boolean> {
   try {
+    const domainRoot = path.join(STORAGE_ROOT, 'domains', mainDomain);
     const cleanRel = (relDocRoot || 'public_html').replace(/^\/+/, '').replace(/\\/g, '/');
-    const wslDocRoot = `/var/www/sitechai-domains/${mainDomain}/${cleanRel}`;
-    const logDir = `/var/www/sitechai-domains/${mainDomain}/logs`;
+    const fullDocRoot = path.resolve(domainRoot, cleanRel).replace(/\\/g, '/');
+    const logDir = path.join(domainRoot, 'logs').replace(/\\/g, '/');
+
+    fs.mkdirSync(fullDocRoot, { recursive: true });
+    fs.mkdirSync(logDir, { recursive: true });
+
+    // Create default welcome page if empty
+    const indexHtml = path.join(fullDocRoot, 'index.html');
+    const indexPhp = path.join(fullDocRoot, 'index.php');
+    if (!fs.existsSync(indexHtml) && !fs.existsSync(indexPhp)) {
+      fs.writeFileSync(indexHtml, `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to ${domain}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f19; color: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .card { background: #131d31; border: 1px solid #1e293b; border-radius: 20px; padding: 48px; max-width: 620px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .badge { display: inline-flex; align-items: center; background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; font-size: 13px; padding: 6px 16px; border-radius: 9999px; margin-bottom: 24px; border: 1px solid rgba(52, 211, 153, 0.3); }
+    h1 { font-size: 32px; font-weight: 800; color: #ffffff; margin-bottom: 12px; }
+    p { color: #94a3b8; font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+    .note { font-size: 13px; color: #64748b; font-family: monospace; background: #0b111e; padding: 14px; border-radius: 10px; border: 1px solid #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">&#10003; Live VHost Running</div>
+    <h1>${domain}</h1>
+    <p>Your web hosting service is successfully provisioned and live on HOSTER 1280 high-performance cloud cluster.</p>
+    <div class="note">Upload your website files into <code>public_html</code> via cPanel File Manager to replace this page.</div>
+  </div>
+</body>
+</html>`);
+    }
+
+    const phpSock = getPhpFpmSocket();
 
     const nginxSiteConfig = `# Live Nginx VirtualHost for ${domain}
-# Managed by HOSTER 1280 Web Server Engine
+# Managed by HOSTER 1280 Multi-Tenant Engine
 server {
     listen 80;
     listen [::]:80;
     server_name ${domain} www.${domain};
 
-    root ${wslDocRoot};
+    root ${fullDocRoot};
     index index.php index.html index.htm;
 
+    access_log ${logDir}/${domain}_access.log;
+    error_log ${logDir}/${domain}_error.log;
+
+    # Security Headers
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Frame-Options SAMEORIGIN;
+
     ${forceHttps ? `
-    # Force HTTPS Redirect
     if ($scheme = http) {
         return 301 https://$host$request_uri;
     }
     ` : ''}
 
     location / {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.php?$args;
     }
 
     location ~ \\.php$ {
         include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
+        fastcgi_pass unix:${phpSock};
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
+        fastcgi_read_timeout 180;
     }
 
     location ~ /\\.(?!well-known).* {
         deny all;
     }
 
-    access_log ${logDir}/${domain}_access.log;
-    error_log ${logDir}/${domain}_error.log;
+    location ~ /\\.ht {
+        deny all;
+    }
 }
 `;
 
-    const domainRoot = path.join(STORAGE_ROOT, 'domains', mainDomain);
     const nginxDir = path.join(domainRoot, 'vhosts', 'nginx');
     fs.mkdirSync(nginxDir, { recursive: true });
     const localConfPath = path.join(nginxDir, `${domain}.conf`);
     fs.writeFileSync(localConfPath, nginxSiteConfig);
 
-    const wslSourcePath = `/var/www/sitechai-domains/${mainDomain}/vhosts/nginx/${domain}.conf`;
-    const cmd = `wsl -d Ubuntu -u root bash -c "mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled '${logDir}' && cp '${wslSourcePath}' '/etc/nginx/sites-available/${domain}.conf' && ln -sf '/etc/nginx/sites-available/${domain}.conf' '/etc/nginx/sites-enabled/${domain}.conf' && nginx -t && nginx -s reload"`;
-    await execPromise(cmd);
+    if (process.platform === 'linux') {
+      const sitesAvail = '/etc/nginx/sites-available';
+      const sitesEnabled = '/etc/nginx/sites-enabled';
+      if (fs.existsSync(sitesAvail)) {
+        const destConf = path.join(sitesAvail, `${domain}.conf`);
+        fs.writeFileSync(`/tmp/${domain}_nginx.conf`, nginxSiteConfig);
+        await execPromise(`sudo cp "/tmp/${domain}_nginx.conf" "${destConf}" && sudo rm -f "/tmp/${domain}_nginx.conf"`);
+        if (fs.existsSync(sitesEnabled)) {
+          await execPromise(`sudo ln -sf "${destConf}" "${path.join(sitesEnabled, `${domain}.conf`)}"`);
+        }
+        await execPromise(`sudo chmod 755 "${fullDocRoot}" 2>/dev/null || true`);
+        await execPromise(`sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload)`);
+      }
+    } else {
+      // Windows / WSL dev support
+      try {
+        const wslDocRoot = `/var/www/sitechai-domains/${mainDomain}/${cleanRel}`;
+        const wslSourcePath = `/var/www/sitechai-domains/${mainDomain}/vhosts/nginx/${domain}.conf`;
+        const cmd = `wsl -d Ubuntu -u root bash -c "mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled && cp '${wslSourcePath}' '/etc/nginx/sites-available/${domain}.conf' && ln -sf '/etc/nginx/sites-available/${domain}.conf' '/etc/nginx/sites-enabled/${domain}.conf' && nginx -t && nginx -s reload"`;
+        await execPromise(cmd);
+      } catch (wslErr) {}
+    }
+
     return true;
   } catch (e) {
     console.error(`Failed to sync live Nginx vhost for ${domain}:`, e);
@@ -505,8 +584,12 @@ server {
 
 export async function removeLiveNginxVHost(domain: string): Promise<boolean> {
   try {
-    const cmd = `wsl -d Ubuntu -u root bash -c "rm -f /etc/nginx/sites-available/${domain}.conf /etc/nginx/sites-enabled/${domain}.conf && nginx -t && nginx -s reload"`;
-    await execPromise(cmd);
+    if (process.platform === 'linux') {
+      await execPromise(`sudo rm -f "/etc/nginx/sites-available/${domain}.conf" "/etc/nginx/sites-enabled/${domain}.conf" && sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload)`);
+    } else {
+      const cmd = `wsl -d Ubuntu -u root bash -c "rm -f /etc/nginx/sites-available/${domain}.conf /etc/nginx/sites-enabled/${domain}.conf && nginx -t && nginx -s reload"`;
+      await execPromise(cmd);
+    }
     return true;
   } catch (e) {
     console.error(`Failed to remove live Nginx vhost for ${domain}:`, e);
@@ -585,9 +668,13 @@ export function removeDnsZoneForDomain(mainDomain: string, domain: string) {
   }
 }
 
-export async function syncBind9Zone(domain: string, serverIp: string) {
+export async function syncBind9Zone(domain: string, serverIp?: string) {
   if (process.platform !== 'linux') return;
   try {
+    let cleanIp = serverIp || getBestIp();
+    if (!cleanIp || cleanIp.startsWith('169.254.') || cleanIp.startsWith('127.')) {
+      cleanIp = '208.72.218.129';
+    }
     const bindZonesDir = '/etc/bind/zones';
     const namedLocalConf = '/etc/bind/named.conf.local';
     if (!fs.existsSync('/etc/bind')) return;
@@ -1060,12 +1147,14 @@ export function serverApiPlugin(): Plugin {
           const cpus = os.cpus();
           const cpuModel = cpus[0]?.model?.trim() || 'Generic Multi-Core CPU';
           const cpuCores = cpus.length;
+          const publicIp = await getPublicServerIp();
 
           const metrics = {
             hostname: os.hostname(),
             platform: `${os.type()} ${os.release()} (${os.arch()})`,
             nodeVersion: process.version,
-            serverIp: getBestIp(),
+            serverIp: publicIp,
+            publicIp: publicIp,
             uptimeSeconds: Math.floor(os.uptime()),
             cpu: {
               model: cpuModel,
@@ -3895,7 +3984,7 @@ export function serverApiPlugin(): Plugin {
             const parsed = new URL('http://localhost' + url);
             const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
             const prefix = mariadbService.getAccountPrefix(domain);
-            const ip = getBestIp();
+            const ip = await getPublicServerIp();
             const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
             const diskBytes = getDirSizeBytes(baseDir);
 
