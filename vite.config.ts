@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react(), serverApiPlugin()],
   server: {
     port: 5173,
-    host: true
+    host: true,
+    allowedHosts: true
   }
 })
