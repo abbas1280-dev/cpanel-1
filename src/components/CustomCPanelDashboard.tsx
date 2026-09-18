@@ -1,5 +1,5 @@
 import React from 'react';
-import { ServiceItem, ServerMetrics } from '../types';
+import { ServiceItem, ServerMetrics, DomainSubTab } from '../types';
 
 interface CustomCPanelDashboardProps {
   initialService?: ServiceItem;
@@ -7,7 +7,7 @@ interface CustomCPanelDashboardProps {
   onExit: () => void;
   serverMetrics?: ServerMetrics | null;
   onOpenFileManager?: (service: ServiceItem) => void;
-  onOpenDomains?: (service: ServiceItem) => void;
+  onOpenDomains?: (service: ServiceItem, initialTab?: DomainSubTab) => void;
   onOpenDatabases?: (service: ServiceItem, initialTab?: string) => void;
 }
 
@@ -44,7 +44,7 @@ export const CustomCPanelDashboard: React.FC<CustomCPanelDashboardProps> = ({
         const targetDomain = event.data.domain || activeDomain;
         const targetService = allServices.find(s => s.domain === targetDomain) || initialService;
         if (targetService && onOpenDomains) {
-          onOpenDomains(targetService);
+          onOpenDomains(targetService, event.data.tab as DomainSubTab);
         }
       } else if (event.data.type === 'OPEN_DATABASES') {
         const targetDomain = event.data.domain || activeDomain;

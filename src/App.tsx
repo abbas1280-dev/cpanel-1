@@ -10,7 +10,14 @@ import { FileManagerView } from './components/FileManagerView';
 import { CPanelDomainsView } from './components/CPanelDomainsView';
 import { CPanelDatabasesView } from './components/CPanelDatabasesView';
 import { GeneralSettingsView } from './components/GeneralSettingsView';
-import { UserProfile, ActiveTab, ServiceItem, DomainItem, ServerMetrics } from './types';
+import {
+  UserProfile,
+  ActiveTab,
+  ServiceItem,
+  DomainItem,
+  ServerMetrics,
+  DomainSubTab
+} from './types';
 import { CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 
 const INITIAL_USER: UserProfile = {
@@ -36,6 +43,7 @@ export function App() {
   const [cpanelTargetService, setCpanelTargetService] = useState<ServiceItem | undefined>(undefined);
   const [fileManagerInitialPath, setFileManagerInitialPath] = useState<string>('/');
   const [databaseInitialTab, setDatabaseInitialTab] = useState<string>('databases');
+  const [domainsSuiteInitialTab, setDomainsSuiteInitialTab] = useState<DomainSubTab>('domains');
 
   // Live Real Server Metrics State
   const [serverMetrics, setServerMetrics] = useState<ServerMetrics | null>(null);
@@ -125,10 +133,15 @@ export function App() {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as ActiveTab;
       const domainParam = params.get('domain');
+      const subtabParam = params.get('subtab') as DomainSubTab;
       if (tabParam && ['dashboard', 'services', 'domains', 'profile', 'settings', 'cpanel', 'filemanager', 'cpanel_domains', 'cpanel_databases'].includes(tabParam)) {
         setActiveTab(tabParam);
       }
+      if (subtabParam && ['domains', 'subdomains', 'addon', 'aliases', 'redirects', 'zone_editor', 'ddns'].includes(subtabParam)) {
+        setDomainsSuiteInitialTab(subtabParam);
+      }
       if (domainParam) {
+
         const found = services.find(s => s.domain === domainParam);
         if (found) {
           setCpanelTargetService(found);
@@ -316,8 +329,10 @@ export function App() {
           currentService={cpanelTargetService}
           allServices={services}
           serverMetrics={serverMetrics}
+          initialTab={domainsSuiteInitialTab}
           onExit={() => setActiveTab('cpanel')}
           onOpenFileManager={(dom, docRoot) => {
+
             const srv = services.find(s => s.domain === dom) || cpanelTargetService;
             setCpanelTargetService(srv);
             setFileManagerInitialPath(docRoot || '/');
@@ -436,10 +451,12 @@ export function App() {
                 setCpanelTargetService(srv);
                 setActiveTab('filemanager');
               }}
-              onOpenDomains={(srv) => {
+              onOpenDomains={(srv, tab) => {
                 setCpanelTargetService(srv);
+                setDomainsSuiteInitialTab(tab || 'domains');
                 setActiveTab('cpanel_domains');
               }}
+
               onOpenDatabases={(srv, tab) => {
                 setCpanelTargetService(srv);
                 setDatabaseInitialTab(tab || 'databases');
