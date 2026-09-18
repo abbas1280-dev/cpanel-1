@@ -1538,10 +1538,11 @@ export function serverApiPlugin(): Plugin {
         // =========================================================================
         if (url === '/api/filemanager/copy' && request.method === 'POST') {
           try {
-            const { domain, sourcePath, items, destinationPath } = await parseJsonBody(request);
+            const { domain, sourcePath, items, destinationPath, destPath } = await parseJsonBody(request);
+            const targetDest = destinationPath !== undefined ? destinationPath : destPath;
             const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
             const cleanSrc = (sourcePath || '').replace(/^\/+/, '');
-            const cleanDest = (destinationPath || '').replace(/^\/+/, '');
+            const cleanDest = (targetDest || '').replace(/^\/+/, '');
             const srcDir = path.resolve(domainRoot, cleanSrc);
             const destDir = path.resolve(domainRoot, cleanDest);
 
@@ -1585,10 +1586,11 @@ export function serverApiPlugin(): Plugin {
         // =========================================================================
         if (url === '/api/filemanager/move' && request.method === 'POST') {
           try {
-            const { domain, sourcePath, items, destinationPath } = await parseJsonBody(request);
+            const { domain, sourcePath, items, destinationPath, destPath } = await parseJsonBody(request);
+            const targetDest = destinationPath !== undefined ? destinationPath : destPath;
             const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
             const cleanSrc = (sourcePath || '').replace(/^\/+/, '');
-            const cleanDest = (destinationPath || '').replace(/^\/+/, '');
+            const cleanDest = (targetDest || '').replace(/^\/+/, '');
             const srcDir = path.resolve(domainRoot, cleanSrc);
             const destDir = path.resolve(domainRoot, cleanDest);
 

@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "lucide-react": "^0.446.0",
     "mysql2": "^3.24.4",
     "react": "^18.3.1",

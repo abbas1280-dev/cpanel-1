@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Editor from '@monaco-editor/react';
 import {
   Folder,
   FolderPlus,
   FilePlus,
   Copy,
   Move,
+  Clipboard,
   Upload,
   Download,
   Trash2,
@@ -168,6 +170,64 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
   // Upload progress state
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+
+  // Clipboard State (for Cut / Copy / Paste)
+  const [clipboard, setClipboard] = useState<{
+    action: 'copy' | 'move';
+    sourceDir: string;
+    items: string[];
+  } | null>(null);
+
+  // Editor language detection & override
+  const [editorLanguage, setEditorLanguage] = useState<string>('plaintext');
+
+  const detectLanguage = (filename: string): string => {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    switch (ext) {
+      case 'php':
+      case 'phtml':
+        return 'php';
+      case 'html':
+      case 'htm':
+        return 'html';
+      case 'css':
+      case 'scss':
+      case 'less':
+        return 'css';
+      case 'js':
+      case 'mjs':
+      case 'cjs':
+        return 'javascript';
+      case 'ts':
+      case 'tsx':
+        return 'typescript';
+      case 'json':
+        return 'json';
+      case 'sql':
+        return 'sql';
+      case 'xml':
+      case 'svg':
+        return 'xml';
+      case 'sh':
+      case 'bash':
+        return 'shell';
+      case 'yaml':
+      case 'yml':
+        return 'yaml';
+      case 'md':
+      case 'markdown':
+        return 'markdown';
+      case 'py':
+        return 'python';
+      case 'htaccess':
+      case 'env':
+      case 'ini':
+      case 'conf':
+        return 'ini';
+      default:
+        return 'plaintext';
+    }
+  };
 
   // Right-Click Context Menu State
   const [contextMenu, setContextMenu] = useState<{
@@ -375,6 +435,82 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     });
   };
 
+  // Right-Click Context Menu for Table Background / Empty Space
+  const handleEmptySpaceContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const menuWidth = 220;
+    const menuHeight = 280;
+    let x = e.clientX;
+    let y = e.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 10;
+    }
+
+    setContextMenu({
+      visible: true,
+      x: Math.max(10, x),
+      y: Math.max(10, y),
+      item: null
+    });
+  };
+
+  // Copy/Cut to Clipboard
+  const handleCopyClipboard = (itemsToCopy?: string[], isCut: boolean = false) => {
+    const list = itemsToCopy && itemsToCopy.length > 0 
+      ? itemsToCopy 
+      : Array.from(selectedItems);
+    if (list.length === 0) return;
+    setClipboard({
+      action: isCut ? 'move' : 'copy',
+      sourceDir: currentPath,
+      items: list
+    });
+    showToast(`${isCut ? 'Cut' : 'Copied'} ${list.length} item(s). Navigate to destination and click Paste.`);
+  };
+
+  // Paste from Clipboard
+  const handlePasteClipboard = async () => {
+    if (!clipboard || clipboard.items.length === 0) return;
+    const isSameDir = clipboard.sourceDir === currentPath;
+    if (isSameDir && clipboard.action === 'move') {
+      showToast('Source and destination directories are the same.', 'error');
+      return;
+    }
+
+    showToast(`${clipboard.action === 'move' ? 'Moving' : 'Copying'} ${clipboard.items.length} item(s)...`);
+    try {
+      const endpoint = clipboard.action === 'move' ? '/api/filemanager/move' : '/api/filemanager/copy';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: activeDomain,
+          sourcePath: clipboard.sourceDir,
+          destPath: currentPath,
+          items: clipboard.items
+        })
+      });
+      if (res.ok) {
+        showToast(`${clipboard.items.length} item(s) ${clipboard.action === 'move' ? 'moved' : 'copied'} successfully.`);
+        if (clipboard.action === 'move') {
+          setClipboard(null);
+        }
+        await Promise.all([fetchDirectory(currentPath), fetchTree()]);
+      } else {
+        const err = await res.json();
+        showToast(err.error || `Failed to ${clipboard.action} items.`, 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error executing paste.', 'error');
+    }
+  };
+
   const handleItemDoubleClick = (item: FileItem) => {
     if (item.isDir) {
       const target = currentPath === '/' ? `/${item.name}` : `${currentPath}/${item.name}`;
@@ -484,6 +620,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       if (res.ok) {
         setModalInputName(filename);
         setModalInputContent(data.content || '');
+        setEditorLanguage(detectLanguage(filename));
         setViewingFileMeta({
           filename,
           size: data.size || '0 bytes',
@@ -498,8 +635,8 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     }
   };
 
-  // Save Editor
-  const handleSaveEditor = async () => {
+  // Save Editor (Ctrl+S or Save Changes / Save & Close)
+  const handleSaveEditor = async (closeAfterSave: boolean = false) => {
     try {
       const res = await fetch('/api/filemanager/save-file', {
         method: 'POST',
@@ -514,7 +651,9 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       if (res.ok) {
         showToast(`File "${modalInputName}" saved successfully.`);
         fetchDirectory(currentPath);
-        setActiveModal(null);
+        if (closeAfterSave) {
+          setActiveModal(null);
+        }
       } else {
         const err = await res.json();
         showToast(err.error || 'Failed to save file.', 'error');
@@ -523,6 +662,20 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       showToast(e.message, 'error');
     }
   };
+
+  // Keyboard shortcut: Ctrl+S / Cmd+S to Auto-Save when Code Editor is open
+  useEffect(() => {
+    if (activeModal !== 'edit') return;
+    const handleEditorKeydown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSaveEditor(false);
+      }
+    };
+    window.addEventListener('keydown', handleEditorKeydown, true);
+    return () => window.removeEventListener('keydown', handleEditorKeydown, true);
+  }, [activeModal, modalInputName, modalInputContent, activeDomain, currentPath]);
 
   // Rename Submit
   const handleRenameSubmit = async (e: React.FormEvent) => {
@@ -1011,21 +1164,48 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       {/* 1. TOP HEADER (CLICKING LOGO RETURNS TO CPANEL DASHBOARD - REQUIREMENT #2) */}
       {/* ========================================================================= */}
       <header className="bg-[#1f2837] text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-700 shadow-sm">
-        {/* Left: cPanel Logo + File Manager Title (Clickable -> return to cPanel) */}
-        <div
-          onClick={onExit}
-          className="flex items-center gap-3 cursor-pointer group"
-          title="Click to return to cPanel Main Dashboard"
-        >
-          <div className="w-7 h-7 rounded bg-[#ff6c2c] text-white flex items-center justify-center font-black text-xs shadow-sm group-hover:scale-105 transition-transform">
-            cP
-          </div>
-          <span className="text-base font-bold tracking-tight flex items-center gap-2 group-hover:text-orange-400 transition-colors">
-            <span>File Manager</span>
-            <span className="text-[10px] bg-white/10 text-slate-300 px-2 py-0.5 rounded font-mono font-normal">
-              {activeDomain}
+        {/* Left: cPanel Logo + File Manager Title + Dynamic Breadcrumbs */}
+        <div className="flex items-center gap-3">
+          <div
+            onClick={onExit}
+            className="flex items-center gap-2.5 cursor-pointer group"
+            title="Click to return to cPanel Main Dashboard"
+          >
+            <div className="w-7 h-7 rounded bg-[#ff6c2c] text-white flex items-center justify-center font-black text-xs shadow-sm group-hover:scale-105 transition-transform">
+              cP
+            </div>
+            <span className="text-base font-bold tracking-tight group-hover:text-orange-400 transition-colors hidden sm:inline">
+              File Manager
             </span>
-          </span>
+          </div>
+
+          <div className="h-5 w-px bg-slate-700 hidden md:block" />
+
+          {/* Dynamic Clickable Breadcrumbs right alongside logo */}
+          <div className="flex items-center gap-1 font-mono text-xs overflow-x-auto max-w-[220px] lg:max-w-md">
+            <span className="text-slate-400 font-sans font-medium text-[11px] hidden xl:inline">/home/{domainUsername}</span>
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <React.Fragment key={crumb.path}>
+                  <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
+                  {isLast ? (
+                    <span className="font-bold text-orange-400 truncate max-w-[120px]">
+                      {crumb.name}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => navigateTo(crumb.path)}
+                      className="text-slate-300 hover:text-white hover:underline truncate max-w-[90px]"
+                      title={`Go to ${crumb.path}`}
+                    >
+                      {crumb.name}
+                    </button>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
 
         {/* Center: Search Tool */}
@@ -1055,7 +1235,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
               }
             }}
             placeholder=""
-            className="w-40 sm:w-56 bg-white text-slate-800 px-2 py-1 text-xs rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+            className="w-36 sm:w-52 bg-white text-slate-800 px-2 py-1 text-xs rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
           />
           <button
             onClick={() => {
@@ -1163,6 +1343,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
           className={`flex items-center gap-1 px-2 py-1.5 rounded font-medium ${
             selectedItems.size > 0 ? 'hover:bg-slate-200 text-slate-800' : 'text-slate-400 cursor-not-allowed'
           }`}
+          title="Copy selected items to a destination path"
         >
           <Copy className="w-3.5 h-3.5 text-slate-600" />
           <span>Copy</span>
@@ -1178,9 +1359,25 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
           className={`flex items-center gap-1 px-2 py-1.5 rounded font-medium ${
             selectedItems.size > 0 ? 'hover:bg-slate-200 text-slate-800' : 'text-slate-400 cursor-not-allowed'
           }`}
+          title="Move selected items to a destination path"
         >
           <Move className="w-3.5 h-3.5 text-slate-600" />
           <span>Move</span>
+        </button>
+
+        {/* Paste from Clipboard */}
+        <button
+          disabled={!clipboard || clipboard.items.length === 0}
+          onClick={handlePasteClipboard}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded font-medium transition-colors ${
+            clipboard && clipboard.items.length > 0
+              ? 'hover:bg-emerald-100 text-emerald-800 font-bold bg-emerald-50 border border-emerald-300 shadow-2xs'
+              : 'text-slate-400 cursor-not-allowed'
+          }`}
+          title={clipboard ? `Paste ${clipboard.items.length} item(s) from clipboard into current folder` : 'Clipboard is empty'}
+        >
+          <Clipboard className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Paste{clipboard && clipboard.items.length > 0 ? ` (${clipboard.items.length})` : ''}</span>
         </button>
 
         {/* Upload */}
@@ -1600,7 +1797,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
             </div>
           )}
 
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto" onContextMenu={handleEmptySpaceContextMenu}>
             <table className="w-full text-left text-xs border-collapse font-sans">
               <thead className="bg-[#f0f4f8] text-[#004b99] sticky top-0 z-10 border-b border-slate-200 select-none">
                 <tr>
@@ -1772,191 +1969,321 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       {/* ========================================================================= */}
       {/* 5. RIGHT-CLICK CONTEXT MENU (REQUIREMENT #1) */}
       {/* ========================================================================= */}
-      {contextMenu.visible && contextMenu.item && (
+      {contextMenu.visible && (
         <div
-          className="fixed z-50 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-slate-700 w-52 font-sans animate-in fade-in duration-100"
+          className="fixed z-50 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-slate-700 w-56 font-sans animate-in fade-in duration-100 select-none"
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
           onClick={e => e.stopPropagation()}
         >
-          {/* Header showing item name */}
-          <div className="px-3 py-1 text-[11px] font-bold text-slate-400 border-b border-slate-100 truncate">
-            {contextMenu.item.name}
-          </div>
-
-          {/* Open / Edit / View / Download */}
-          {!contextMenu.item.isDir ? (
+          {contextMenu.item ? (
+            // ==========================================
+            // ITEM CONTEXT MENU (File, Folder, Archive)
+            // ==========================================
             <>
+              {/* Header showing item name */}
+              <div className="px-3 py-1 text-[11px] font-bold text-slate-400 border-b border-slate-100 truncate flex items-center gap-1.5">
+                {renderItemIcon(contextMenu.item)}
+                <span className="truncate">{contextMenu.item.name}</span>
+              </div>
+
+              {/* ARCHIVE SPECIFIC: Extract at very top */}
+              {(contextMenu.item.name.endsWith('.zip') ||
+                contextMenu.item.name.endsWith('.tar') ||
+                contextMenu.item.name.endsWith('.gz') ||
+                contextMenu.item.name.endsWith('.rar')) && (
+                <>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      setModalExtractDest(currentPath);
+                      setActiveModal('extract');
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-purple-700 flex items-center gap-2 font-bold text-purple-700"
+                  >
+                    <Archive className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Extract (Unzip)</span>
+                  </button>
+                  <div className="h-px bg-slate-100 my-1" />
+                </>
+              )}
+
+              {/* FOLDER SPECIFIC: Open Folder */}
+              {contextMenu.item.isDir && (
+                <button
+                  onClick={() => {
+                    setContextMenu(prev => ({ ...prev, visible: false }));
+                    const target = currentPath === '/' ? `/${contextMenu.item!.name}` : `${currentPath}/${contextMenu.item!.name}`;
+                    navigateTo(target);
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-bold"
+                >
+                  <Folder className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Open Folder</span>
+                </button>
+              )}
+
+              {/* FILE SPECIFIC: Edit / View / Download */}
+              {!contextMenu.item.isDir && (
+                <>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      handleOpenEditor(contextMenu.item!.name, false);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                  >
+                    <Code className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Edit / Code Editor</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      handleOpenEditor(contextMenu.item!.name, true);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-teal-600" />
+                    <span>View</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      handleDownload(contextMenu.item!.name);
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Download</span>
+                  </button>
+                </>
+              )}
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              {/* Rename */}
               <button
                 onClick={() => {
                   setContextMenu(prev => ({ ...prev, visible: false }));
-                  handleOpenEditor(contextMenu.item!.name, false);
+                  setModalInputName(contextMenu.item!.name);
+                  setActiveModal('rename');
                 }}
-                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
               >
-                <Code className="w-3.5 h-3.5 text-blue-600" />
-                <span>Edit / Code Editor</span>
+                <Edit className="w-3.5 h-3.5 text-sky-600" />
+                <span>Rename</span>
               </button>
+
+              {/* Change Permissions */}
               <button
                 onClick={() => {
                   setContextMenu(prev => ({ ...prev, visible: false }));
-                  handleOpenEditor(contextMenu.item!.name, true);
+                  handleOpenPermissions(contextMenu.item!);
                 }}
-                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
               >
-                <Eye className="w-3.5 h-3.5 text-teal-600" />
-                <span>View</span>
+                <Key className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Change Permissions ({contextMenu.item.permissions})</span>
               </button>
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              {/* Copy Options */}
               <button
                 onClick={() => {
                   setContextMenu(prev => ({ ...prev, visible: false }));
-                  handleDownload(contextMenu.item!.name);
+                  handleCopyClipboard([contextMenu.item!.name], false);
                 }}
-                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
               >
-                <Download className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Download</span>
+                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                <span>Copy to Clipboard</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  handleCopyClipboard([contextMenu.item!.name], true);
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
+              >
+                <Scissors className="w-3.5 h-3.5 text-slate-500" />
+                <span>Cut to Clipboard</span>
+              </button>
+
+              {/* Copy / Move Dialogs */}
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setModalCopyMoveDest(currentPath);
+                  setActiveModal('copy');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium text-slate-500"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy to... (Specify Path)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setModalCopyMoveDest(currentPath);
+                  setActiveModal('move');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium text-slate-500"
+              >
+                <Move className="w-3.5 h-3.5" />
+                <span>Move to... (Specify Path)</span>
+              </button>
+
+              {/* Compress (Zip) */}
+              <div className="h-px bg-slate-100 my-1" />
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setModalArchiveName(`${contextMenu.item!.name}.zip`);
+                  setModalArchiveFormat('zip');
+                  setActiveModal('compress');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
+              >
+                <Archive className="w-3.5 h-3.5 text-orange-600" />
+                <span>Compress (Zip)</span>
+              </button>
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              {/* Delete / Restore */}
+              {currentPath.startsWith('/.trash') ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      handleRestoreFromTrash();
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 font-bold"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Restore from Trash</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setContextMenu(prev => ({ ...prev, visible: false }));
+                      setModalSkipTrash(true);
+                      setActiveModal('delete');
+                    }}
+                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-700 flex items-center gap-2 font-bold"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Permanently</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setContextMenu(prev => ({ ...prev, visible: false }));
+                    setModalSkipTrash(false);
+                    setActiveModal('delete');
+                  }}
+                  className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-700 flex items-center gap-2 font-medium"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete</span>
+                </button>
+              )}
             </>
           ) : (
-            <button
-              onClick={() => {
-                setContextMenu(prev => ({ ...prev, visible: false }));
-                const target = currentPath === '/' ? `/${contextMenu.item!.name}` : `${currentPath}/${contextMenu.item!.name}`;
-                navigateTo(target);
-              }}
-              className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
-            >
-              <Folder className="w-3.5 h-3.5 text-amber-500" />
-              <span>Open Folder</span>
-            </button>
-          )}
-
-          <div className="h-px bg-slate-100 my-1" />
-
-          {/* Copy */}
-          <button
-            onClick={() => {
-              setContextMenu(prev => ({ ...prev, visible: false }));
-              setModalCopyMoveDest(currentPath);
-              setActiveModal('copy');
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
-          >
-            <Copy className="w-3.5 h-3.5 text-slate-500" />
-            <span>Copy</span>
-          </button>
-
-          {/* Move */}
-          <button
-            onClick={() => {
-              setContextMenu(prev => ({ ...prev, visible: false }));
-              setModalCopyMoveDest(currentPath);
-              setActiveModal('move');
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
-          >
-            <Move className="w-3.5 h-3.5 text-slate-500" />
-            <span>Move</span>
-          </button>
-
-          {/* Rename */}
-          <button
-            onClick={() => {
-              setContextMenu(prev => ({ ...prev, visible: false }));
-              setModalInputName(contextMenu.item!.name);
-              setActiveModal('rename');
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
-          >
-            <Edit className="w-3.5 h-3.5 text-sky-600" />
-            <span>Rename</span>
-          </button>
-
-          {/* Change Permissions */}
-          <button
-            onClick={() => {
-              setContextMenu(prev => ({ ...prev, visible: false }));
-              handleOpenPermissions(contextMenu.item!);
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
-          >
-            <Key className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Change Permissions</span>
-          </button>
-
-          <div className="h-px bg-slate-100 my-1" />
-
-          {/* Compress */}
-          <button
-            onClick={() => {
-              setContextMenu(prev => ({ ...prev, visible: false }));
-              setModalArchiveName(`${contextMenu.item!.name}.zip`);
-              setModalArchiveFormat('zip');
-              setActiveModal('compress');
-            }}
-            className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
-          >
-            <Archive className="w-3.5 h-3.5 text-orange-600" />
-            <span>Compress (Archive)</span>
-          </button>
-
-          {/* Extract (if archive) */}
-          {(contextMenu.item.name.endsWith('.zip') ||
-            contextMenu.item.name.endsWith('.tar') ||
-            contextMenu.item.name.endsWith('.gz') ||
-            contextMenu.item.name.endsWith('.rar')) && (
-            <button
-              onClick={() => {
-                setContextMenu(prev => ({ ...prev, visible: false }));
-                setModalExtractDest(currentPath);
-                setActiveModal('extract');
-              }}
-              className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium text-purple-700"
-            >
-              <Archive className="w-3.5 h-3.5 text-purple-600" />
-              <span>Extract</span>
-            </button>
-          )}
-
-          <div className="h-px bg-slate-100 my-1" />
-
-          {/* Delete or Restore */}
-          {currentPath.startsWith('/.trash') ? (
+            // ==========================================
+            // EMPTY SPACE / BACKGROUND CONTEXT MENU
+            // ==========================================
             <>
+              <div className="px-3 py-1 text-[11px] font-bold text-slate-400 border-b border-slate-100 truncate">
+                Folder: /home/{domainUsername}{currentPath}
+              </div>
+
+              {/* + New File */}
               <button
                 onClick={() => {
                   setContextMenu(prev => ({ ...prev, visible: false }));
-                  handleRestoreFromTrash();
+                  setModalInputName('');
+                  setModalInputContent('');
+                  setActiveModal('new_file');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+              >
+                <FilePlus className="w-3.5 h-3.5 text-blue-600" />
+                <span>New File</span>
+              </button>
+
+              {/* + New Folder */}
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setModalInputName('');
+                  setActiveModal('new_folder');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-amber-600" />
+                <span>New Folder</span>
+              </button>
+
+              {/* Upload Files */}
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setModalUploadFile(null);
+                  setUploadProgress(null);
+                  setActiveModal('upload');
+                }}
+                className="w-full px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Upload Files</span>
+              </button>
+
+              {/* Paste */}
+              <button
+                disabled={!clipboard || clipboard.items.length === 0}
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  handlePasteClipboard();
+                }}
+                className={`w-full px-3 py-1.5 text-left flex items-center gap-2 font-medium ${
+                  clipboard && clipboard.items.length > 0
+                    ? 'hover:bg-emerald-50 text-emerald-800 font-bold'
+                    : 'text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Clipboard className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Paste{clipboard && clipboard.items.length > 0 ? ` (${clipboard.items.length} items)` : ''}</span>
+              </button>
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              {/* Restore Default Structure */}
+              <button
+                onClick={() => {
+                  setContextMenu(prev => ({ ...prev, visible: false }));
+                  setActiveModal('restore_confirm');
                 }}
                 className="w-full px-3 py-1.5 text-left hover:bg-emerald-50 text-emerald-700 flex items-center gap-2 font-bold"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Restore from Trash</span>
+                <span>Restore Default Structure</span>
               </button>
+
+              {/* Reload / Refresh */}
               <button
                 onClick={() => {
                   setContextMenu(prev => ({ ...prev, visible: false }));
-                  setModalSkipTrash(true);
-                  setActiveModal('delete');
+                  handleReload();
                 }}
-                className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-700 flex items-center gap-2 font-bold"
+                className="w-full px-3 py-1.5 text-left hover:bg-slate-100 flex items-center gap-2 font-medium"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Delete Permanently</span>
+                <RotateCw className="w-3.5 h-3.5 text-blue-600" />
+                <span>Reload / Refresh</span>
               </button>
             </>
-          ) : (
-            <button
-              onClick={() => {
-                setContextMenu(prev => ({ ...prev, visible: false }));
-                setModalSkipTrash(false);
-                setActiveModal('delete');
-              }}
-              className="w-full px-3 py-1.5 text-left hover:bg-rose-50 text-rose-700 flex items-center gap-2 font-medium"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>Delete</span>
-            </button>
           )}
         </div>
       )}
@@ -2050,46 +2377,97 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       {/* C. EDIT / HTML EDITOR MODAL */}
       {(activeModal === 'edit' || activeModal === 'view') && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full h-[85vh] flex flex-col shadow-2xl border border-slate-200 text-xs overflow-hidden">
+          <div className="bg-white rounded-2xl max-w-5xl w-full h-[88vh] flex flex-col shadow-2xl border border-slate-200 text-xs overflow-hidden">
             <div className="bg-[#1f2837] text-white px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Code className="w-4 h-4 text-orange-400" />
                 <span className="font-bold font-mono text-sm">{modalInputName}</span>
-                <span className="text-slate-400 text-[11px]">
+                <span className="text-slate-400 text-[11px] hidden sm:inline">
                   ({viewingFileMeta?.size} • {viewingFileMeta?.modified})
                 </span>
+                {/* Language Picker */}
+                <select
+                  value={editorLanguage}
+                  onChange={e => setEditorLanguage(e.target.value)}
+                  className="bg-slate-800 text-slate-200 border border-slate-600 rounded text-[11px] px-2 py-0.5 ml-2 font-mono focus:outline-none"
+                  title="Switch Syntax Highlighting Language"
+                >
+                  <option value="php">PHP</option>
+                  <option value="html">HTML</option>
+                  <option value="css">CSS</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="json">JSON</option>
+                  <option value="sql">SQL</option>
+                  <option value="shell">Bash/Shell</option>
+                  <option value="yaml">YAML</option>
+                  <option value="xml">XML</option>
+                  <option value="markdown">Markdown</option>
+                  <option value="ini">INI / .htaccess</option>
+                  <option value="plaintext">Plain Text</option>
+                </select>
               </div>
               <div className="flex items-center gap-2">
                 {activeModal === 'edit' && (
-                  <button
-                    onClick={handleSaveEditor}
-                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm"
-                  >
-                    Save Changes
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleSaveEditor(false)}
+                      className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Save changes without closing (Ctrl+S)"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Changes</span>
+                    </button>
+                    <button
+                      onClick={() => handleSaveEditor(true)}
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-lg transition-colors cursor-pointer"
+                      title="Save and close editor"
+                    >
+                      <span>Save & Close</span>
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => setActiveModal(null)}
-                  className="p-1 rounded text-slate-400 hover:text-white"
+                  className="p-1 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 p-4 bg-[#1e1e1e] flex flex-col">
-              <textarea
-                readOnly={activeModal === 'view'}
+            <div className="flex-1 min-h-0 bg-[#1e1e1e] overflow-hidden">
+              <Editor
+                height="100%"
+                language={editorLanguage}
                 value={modalInputContent}
-                onChange={e => setModalInputContent(e.target.value)}
-                className="w-full flex-1 bg-transparent text-[#d4d4d4] font-mono text-xs focus:outline-none resize-none leading-relaxed p-2"
-                placeholder="Empty file..."
+                theme="vs-dark"
+                onChange={val => setModalInputContent(val || '')}
+                options={{
+                  readOnly: activeModal === 'view',
+                  minimap: { enabled: true },
+                  fontSize: 13,
+                  lineNumbers: 'on',
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  tabSize: 4,
+                }}
               />
             </div>
 
             <div className="bg-slate-100 border-t border-slate-200 px-4 py-2 flex items-center justify-between text-[11px] text-slate-600 font-mono">
-              <span>Encoding: UTF-8</span>
-              <span>Lines: {modalInputContent.split('\n').length}</span>
+              <div className="flex items-center gap-3">
+                <span>Encoding: UTF-8</span>
+                <span>•</span>
+                <span>Lines: {modalInputContent.split('\n').length}</span>
+                <span>•</span>
+                <span>Language: <strong className="text-blue-700">{editorLanguage.toUpperCase()}</strong></span>
+              </div>
+              <div className="text-slate-500">
+                Press <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-semibold text-slate-700">Ctrl+S</kbd> to save changes
+              </div>
             </div>
           </div>
         </div>
