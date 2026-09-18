@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 dist/
 *.log
 npm-debug.log*
@@ -18,3 +18,5 @@ print_db_view.py
 test_write.js
 create_perfect_cpanel.py
 ticket_tmp.json
+.trash/
+storage/
