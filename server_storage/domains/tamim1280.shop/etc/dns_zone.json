@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789747847020-1",
+    "id": "rec-1789749842393-1",
     "name": "tamim1280.shop",
     "type": "A",
     "value": "208.72.218.129",
@@ -9,7 +9,7 @@
     "managedBy": "HOSTER 1280 DNS"
   },
   {
-    "id": "rec-1789747847020-2",
+    "id": "rec-1789749842393-2",
     "name": "www.tamim1280.shop",
     "type": "CNAME",
     "value": "tamim1280.shop",
@@ -18,7 +18,7 @@
     "managedBy": "HOSTER 1280 DNS"
   },
   {
-    "id": "rec-1789747847020-3",
+    "id": "rec-1789749842393-3",
     "name": "tamim1280.shop",
     "type": "NS",
     "value": "ns1.hoster1280.shop",
@@ -27,7 +27,7 @@
     "managedBy": "hoster1280.shop DNS"
   },
   {
-    "id": "rec-1789747847020-4",
+    "id": "rec-1789749842393-4",
     "name": "tamim1280.shop",
     "type": "NS",
     "value": "ns2.hoster1280.shop",

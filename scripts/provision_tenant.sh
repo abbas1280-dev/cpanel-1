@@ -37,7 +37,9 @@ if [[ ! "$PHP_VER" =~ ^(7\.4|8\.0|8\.1|8\.2|8\.3)$ ]]; then
   PHP_VER="8.3"
 fi
 
-WEBROOT="/home/${TENANT}/public_html"
+VHOST_BASE="/var/www/vhosts"
+VHOST_ROOT="${VHOST_BASE}/${DOMAIN}"
+WEBROOT="${VHOST_ROOT}/public_html"
 SOCKET_PATH="/run/php/php${PHP_VER}-fpm-${TENANT}.sock"
 
 echo "=== Provisioning Domain: ${DOMAIN} ===" >&2
@@ -53,11 +55,23 @@ else
   useradd -m -s /bin/bash "$TENANT" 2>/dev/null || true
 fi
 
-# 2. Directory & Permissions Setup
+# Add tenant user to www-data group for seamless web server access
+usermod -aG www-data "$TENANT" 2>/dev/null || true
+
+# 2. Canonical Directory & Permissions Setup
+mkdir -p "$VHOST_ROOT"
 mkdir -p "$WEBROOT"
 mkdir -p "$WEBROOT/cgi-bin"
+mkdir -p "${VHOST_ROOT}/logs"
+mkdir -p "${VHOST_ROOT}/etc"
+mkdir -p "${VHOST_ROOT}/ssl"
+mkdir -p "${VHOST_ROOT}/tmp"
+mkdir -p "${VHOST_ROOT}/mail"
 mkdir -p "/home/${TENANT}/logs"
 mkdir -p "/home/${TENANT}/tmp"
+
+# Symlink user home to canonical webroot
+ln -sfn "$WEBROOT" "/home/${TENANT}/public_html" || true
 
 # Create standard welcome index.html if webroot is empty
 if [ ! -f "$WEBROOT/index.html" ] && [ ! -f "$WEBROOT/index.php" ]; then
@@ -102,20 +116,22 @@ if [ ! -f "$WEBROOT/index.html" ] && [ ! -f "$WEBROOT/index.php" ]; then
 EOF
 fi
 
-# Set Linux ownership and permissions
+# Set ownership and permissions on canonical vhost and tenant directories
+chown -R www-data:www-data "$VHOST_ROOT"
 chown -R "${TENANT}:www-data" "/home/${TENANT}"
-chmod 755 "/home/${TENANT}"
+chmod 755 "$VHOST_ROOT"
 chmod 755 "$WEBROOT"
 find "$WEBROOT" -type d -exec chmod 755 {} + 2>/dev/null || true
 find "$WEBROOT" -type f -exec chmod 644 {} + 2>/dev/null || true
 
-# Also sync or symlink with cPanel server_storage if provided
+# Two-way symlink with cPanel server_storage
 DOMAIN_STORAGE="${STORAGE_ROOT}/domains/${DOMAIN}"
 if [ -d "${STORAGE_ROOT}/domains" ]; then
-  mkdir -p "$DOMAIN_STORAGE"
-  if [ ! -e "$DOMAIN_STORAGE/public_html" ]; then
-    ln -sfn "$WEBROOT" "$DOMAIN_STORAGE/public_html" || true
+  if [ -d "$DOMAIN_STORAGE" ] && [ ! -L "$DOMAIN_STORAGE" ]; then
+    cp -rn "$DOMAIN_STORAGE/"* "$VHOST_ROOT/" 2>/dev/null || true
+    rm -rf "$DOMAIN_STORAGE"
   fi
+  ln -sfn "$VHOST_ROOT" "$DOMAIN_STORAGE" || true
 fi
 
 # 3. Dedicated PHP-FPM Pool Creation
@@ -143,7 +159,7 @@ pm.max_requests = 500
 
 chdir = ${WEBROOT}
 
-php_admin_value[open_basedir] = /home/${TENANT}/public_html:/tmp:/var/tmp
+php_admin_value[open_basedir] = ${WEBROOT}:/home/${TENANT}:/tmp:/var/tmp
 php_admin_value[session.save_path] = /tmp
 php_admin_value[upload_tmp_dir] = /tmp
 php_admin_value[disable_functions] = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
@@ -161,15 +177,23 @@ NGINX_ENABLED="/etc/nginx/sites-enabled"
 if [ -d "$NGINX_AVAIL" ]; then
   echo "[+] Generating Nginx VirtualHost for ${DOMAIN} (Port 80 & 443 SSL)..." >&2
 
-  # Ensure SSL certificate exists for HTTPS
-  mkdir -p /etc/ssl/certs /etc/ssl/private
-  if [ ! -f /etc/ssl/certs/ssl-cert-snakeoil.pem ] || [ ! -f /etc/ssl/private/ssl-cert-snakeoil.key ]; then
-    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-      -keyout /etc/ssl/private/ssl-cert-snakeoil.key \
-      -out /etc/ssl/certs/ssl-cert-snakeoil.pem \
-      -subj "/C=US/ST=Cloud/L=Server/O=HOSTER1280/CN=${DOMAIN}" 2>/dev/null || true
-    chmod 640 /etc/ssl/private/ssl-cert-snakeoil.key 2>/dev/null || true
-    chmod 644 /etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
+  # Check for Let's Encrypt live certificates vs Snakeoil fallback
+  SSL_CERT="/etc/ssl/certs/ssl-cert-snakeoil.pem"
+  SSL_KEY="/etc/ssl/private/ssl-cert-snakeoil.key"
+  if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${DOMAIN}/privkey.pem" ]; then
+    SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+    SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+  else
+    # Ensure SSL snakeoil certificate exists for HTTPS
+    mkdir -p /etc/ssl/certs /etc/ssl/private
+    if [ ! -f /etc/ssl/certs/ssl-cert-snakeoil.pem ] || [ ! -f /etc/ssl/private/ssl-cert-snakeoil.key ]; then
+      openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+        -keyout /etc/ssl/private/ssl-cert-snakeoil.key \
+        -out /etc/ssl/certs/ssl-cert-snakeoil.pem \
+        -subj "/C=US/ST=Cloud/L=Server/O=HOSTER1280/CN=${DOMAIN}" 2>/dev/null || true
+      chmod 640 /etc/ssl/private/ssl-cert-snakeoil.key 2>/dev/null || true
+      chmod 644 /etc/ssl/certs/ssl-cert-snakeoil.pem 2>/dev/null || true
+    fi
   fi
 
   # Fallback FastCGI socket if dedicated tenant pool is not ready
@@ -193,8 +217,8 @@ server {
     listen [::]:443 ssl;
     server_name ${DOMAIN} www.${DOMAIN};
 
-    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
-    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ssl_certificate ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 

@@ -26,6 +26,39 @@ if (!fs.existsSync(SERVICES_FILE)) {
   fs.writeFileSync(SERVICES_FILE, JSON.stringify([], null, 2));
 }
 
+export function getDomainRoot(domain: string): string {
+  const cleanDomain = (domain || '').toLowerCase().trim();
+  if (!cleanDomain) return path.join(STORAGE_ROOT, 'domains', 'default');
+
+  if (process.platform === 'linux') {
+    const vhostBase = '/var/www/vhosts';
+    const vhostDir = path.join(vhostBase, cleanDomain);
+    const storageDir = path.join(STORAGE_ROOT, 'domains', cleanDomain);
+
+    try {
+      if (fs.existsSync(vhostDir)) {
+        return vhostDir;
+      }
+      if (fs.existsSync(vhostBase)) {
+        fs.mkdirSync(vhostDir, { recursive: true, mode: 0o755 });
+        return vhostDir;
+      }
+    } catch (e) {}
+
+    try {
+      if (fs.existsSync(storageDir)) {
+        return storageDir;
+      }
+    } catch (e) {}
+  }
+
+  return path.join(STORAGE_ROOT, 'domains', cleanDomain);
+}
+
+export function getCanonicalVhostRoot(domain: string): string {
+  return getDomainRoot(domain);
+}
+
 function getSettingsData() {
   if (fs.existsSync(SETTINGS_FILE)) {
     try {
@@ -484,13 +517,22 @@ export async function syncLiveNginxVHost(mainDomain: string, domain: string, rel
     if (domain.toLowerCase() === 'hoster1280.shop') {
       return true;
     }
-    const domainRoot = path.join(STORAGE_ROOT, 'domains', mainDomain);
+    const cleanDomain = domain.toLowerCase().trim();
+    const domainRoot = getDomainRoot(cleanDomain);
     const cleanRel = (relDocRoot || 'public_html').replace(/^\/+/, '').replace(/\\/g, '/');
     const fullDocRoot = path.resolve(domainRoot, cleanRel).replace(/\\/g, '/');
     const logDir = path.join(domainRoot, 'logs').replace(/\\/g, '/');
 
     fs.mkdirSync(fullDocRoot, { recursive: true });
     fs.mkdirSync(logDir, { recursive: true });
+
+    // Ensure /var/www/vhosts/{domain}/public_html exists on Linux
+    const canonicalDocRoot = process.platform === 'linux' ? `/var/www/vhosts/${cleanDomain}/public_html` : fullDocRoot;
+    if (process.platform === 'linux') {
+      try {
+        fs.mkdirSync(`/var/www/vhosts/${cleanDomain}/public_html`, { recursive: true, mode: 0o755 });
+      } catch (e) {}
+    }
 
     // Create default welcome page if empty
     const indexHtml = path.join(fullDocRoot, 'index.html');
@@ -559,6 +601,14 @@ export async function syncLiveNginxVHost(mainDomain: string, domain: string, rel
       }
     } catch (e) {}
 
+    // Check for Let's Encrypt live certificates vs Snakeoil fallback
+    let sslCertLine = 'ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;\n    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;';
+    const liveCert = `/etc/letsencrypt/live/${cleanDomain}/fullchain.pem`;
+    const liveKey = `/etc/letsencrypt/live/${cleanDomain}/privkey.pem`;
+    if (fs.existsSync(liveCert) && fs.existsSync(liveKey)) {
+      sslCertLine = `ssl_certificate ${liveCert};\n    ssl_certificate_key ${liveKey};`;
+    }
+
     const nginxSiteConfig = `# Live Nginx VirtualHost for ${domain}
 # Managed by HOSTER 1280 Multi-Tenant Engine
 server {
@@ -568,12 +618,11 @@ server {
     listen [::]:443 ssl;
     server_name ${domain} www.${domain};
 
-    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;
-    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;
+    ${sslCertLine}
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    root ${fullDocRoot};
+    root ${canonicalDocRoot};
     index index.php index.html index.htm;
 
     access_log ${logDir}/${domain}_access.log;
@@ -593,7 +642,6 @@ server {
     ${redirectsSnippet}
 
     location / {
-
         try_files $uri $uri/ /index.php?$args;
     }
 
@@ -631,6 +679,8 @@ server {
           await execPromise(`sudo ln -sf "${destConf}" "${path.join(sitesEnabled, `${domain}.conf`)}"`);
         }
         await execPromise(`sudo chmod 755 "${fullDocRoot}" 2>/dev/null || true`);
+        await execPromise(`sudo chown -R www-data:www-data "/var/www/vhosts/${cleanDomain}" 2>/dev/null || true`);
+        await execPromise(`sudo chmod -R 755 "/var/www/vhosts/${cleanDomain}" 2>/dev/null || true`);
         await execPromise(`sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload)`);
       }
     } else {
@@ -941,8 +991,25 @@ MIICljCCAX4CCQCSitechaiCloudAutoSSLCertificateFor_${domain}
 }
 
 export function ensureStandardDomainStructure(domain: string, isFirstInit: boolean = false) {
-  const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+  const cleanDomain = (domain || '').toLowerCase().trim();
+  const domainRoot = getDomainRoot(cleanDomain);
   const isBrandNewDomain = !fs.existsSync(domainRoot);
+
+  if (process.platform === 'linux') {
+    const vhostDir = path.join('/var/www/vhosts', cleanDomain);
+    const storageDir = path.join(STORAGE_ROOT, 'domains', cleanDomain);
+    try {
+      if (!fs.existsSync(vhostDir)) {
+        fs.mkdirSync(vhostDir, { recursive: true, mode: 0o755 });
+      }
+      if (!fs.existsSync(storageDir)) {
+        try {
+          fs.mkdirSync(path.dirname(storageDir), { recursive: true });
+          fs.symlinkSync(vhostDir, storageDir, 'junction');
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
   const dirs = [
     'public_html',
     'public_html/cgi-bin',
@@ -1784,7 +1851,7 @@ export function serverApiPlugin(): Plugin {
           const subpath = parsed.searchParams.get('path') || '/';
 
           ensureStandardDomainStructure(domain);
-          const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+          const domainRoot = getDomainRoot(domain);
           
           // Sanitize path
           const cleanSubpath = subpath.replace(/^\/+/, '');
@@ -1873,7 +1940,7 @@ export function serverApiPlugin(): Plugin {
           const parsed = new URL('http://localhost' + url);
           const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
           ensureStandardDomainStructure(domain, false);
-          const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+          const domainRoot = getDomainRoot(domain);
           const username = domain.split('.')[0].slice(0, 7).toLowerCase() + '1';
 
           const tree = {
@@ -1901,7 +1968,7 @@ export function serverApiPlugin(): Plugin {
             const reqPath = body.path !== undefined ? body.path : (body.subpath || '');
             const filename = body.filename || body.name;
             const content = body.content || '';
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetDir = path.resolve(domainRoot, cleanSubpath);
 
@@ -1941,7 +2008,7 @@ export function serverApiPlugin(): Plugin {
               return;
             }
 
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetDir = path.resolve(domainRoot, cleanSubpath, folderName);
 
@@ -1972,7 +2039,7 @@ export function serverApiPlugin(): Plugin {
             const domain = body.domain;
             const reqPath = body.path !== undefined ? body.path : (body.subpath || '');
             const filename = body.filename || body.name;
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetFile = path.resolve(domainRoot, cleanSubpath, filename);
 
@@ -2010,7 +2077,7 @@ export function serverApiPlugin(): Plugin {
             const reqPath = body.path !== undefined ? body.path : (body.subpath || '');
             const filename = body.filename || body.name;
             const content = body.content !== undefined ? body.content : '';
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetFile = path.resolve(domainRoot, cleanSubpath, filename);
 
@@ -2056,7 +2123,7 @@ export function serverApiPlugin(): Plugin {
               return;
             }
 
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             if (!fs.existsSync(domainRoot)) {
               response.statusCode = 404;
               response.end(JSON.stringify({ error: 'Domain storage root not found' }));
@@ -2156,7 +2223,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/rename' && request.method === 'POST') {
           try {
             const { domain, path: reqPath, oldName, newName } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const cleanOld = path.basename((oldName || '').trim());
             const cleanNew = path.basename((newName || '').trim());
@@ -2216,7 +2283,7 @@ export function serverApiPlugin(): Plugin {
             const filename = parsed.searchParams.get('filename') || `upload_${Date.now()}`;
 
             ensureStandardDomainStructure(domain);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetDir = path.resolve(domainRoot, cleanSubpath);
 
@@ -2267,7 +2334,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/upload' && request.method === 'POST') {
           try {
             const { domain, path: reqPath, filename, base64Content } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const targetDir = path.resolve(domainRoot, cleanSubpath);
 
@@ -2297,7 +2364,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/compress' && request.method === 'POST') {
           try {
             const { domain, path: reqPath, items, archiveName, format } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             const workingDir = path.resolve(domainRoot, cleanSubpath);
 
@@ -2348,7 +2415,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/extract' && request.method === 'POST') {
           try {
             const { domain, path: reqPath, archiveName, destination } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = (reqPath || '').replace(/^\/+/, '');
             
             let archivePath = path.resolve(domainRoot, cleanSubpath, archiveName);
@@ -2465,7 +2532,7 @@ export function serverApiPlugin(): Plugin {
           try {
             const { domain, sourcePath, items, destinationPath, destPath } = await parseJsonBody(request);
             const targetDest = destinationPath !== undefined ? destinationPath : destPath;
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSrc = (sourcePath || '').replace(/^\/+/, '');
             const cleanDest = (targetDest || '').replace(/^\/+/, '');
             const srcDir = path.resolve(domainRoot, cleanSrc);
@@ -2513,7 +2580,7 @@ export function serverApiPlugin(): Plugin {
           try {
             const { domain, sourcePath, items, destinationPath, destPath } = await parseJsonBody(request);
             const targetDest = destinationPath !== undefined ? destinationPath : destPath;
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSrc = (sourcePath || '').replace(/^\/+/, '');
             const cleanDest = (targetDest || '').replace(/^\/+/, '');
             const srcDir = path.resolve(domainRoot, cleanSrc);
@@ -2561,7 +2628,7 @@ export function serverApiPlugin(): Plugin {
               return;
             }
 
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             if (!fs.existsSync(domainRoot)) {
               fs.mkdirSync(domainRoot, { recursive: true });
             }
@@ -2655,7 +2722,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/restore-trash' && request.method === 'POST') {
           try {
             const { domain, items } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const trashDir = path.join(domainRoot, '.trash');
             const targetDir = path.join(domainRoot, 'public_html');
 
@@ -2687,7 +2754,7 @@ export function serverApiPlugin(): Plugin {
         if (url === '/api/filemanager/empty-trash' && request.method === 'POST') {
           try {
             const { domain } = await parseJsonBody(request);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const trashDir = path.join(domainRoot, '.trash');
             if (fs.existsSync(trashDir)) {
               fs.rmSync(trashDir, { recursive: true, force: true });
@@ -2718,7 +2785,7 @@ export function serverApiPlugin(): Plugin {
               return;
             }
 
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const cleanSubpath = reqPath.replace(/^\/+/, '');
             const targetDir = path.resolve(domainRoot, cleanSubpath);
             if (!targetDir.startsWith(domainRoot)) {
@@ -2762,7 +2829,7 @@ export function serverApiPlugin(): Plugin {
           const reqPath = parsed.searchParams.get('path') || '/';
           const file = parsed.searchParams.get('file') || '';
 
-          const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+          const domainRoot = getDomainRoot(domain);
           const cleanSubpath = reqPath.replace(/^\/+/, '');
           const cleanFile = path.basename(file);
           let target = path.resolve(domainRoot, cleanSubpath, cleanFile);
@@ -2790,7 +2857,7 @@ export function serverApiPlugin(): Plugin {
         if (url.startsWith('/api/domains/usage') && request.method === 'GET') {
           const parsed = new URL('http://localhost' + url);
           const domain = parsed.searchParams.get('domain') || '';
-          const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+          const domainRoot = getDomainRoot(domain);
           const bytes = getDirSizeBytes(domainRoot);
           const mb = (bytes / (1024 * 1024)).toFixed(2);
           response.setHeader('Content-Type', 'application/json');
@@ -2812,7 +2879,7 @@ export function serverApiPlugin(): Plugin {
             }
 
             ensureStandardDomainStructure(domain);
-            const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
+            const domainRoot = getDomainRoot(domain);
             const regFile = getDomainsRegistryFile(domainRoot);
             let list: any[] = [];
             if (fs.existsSync(regFile)) {
@@ -4895,7 +4962,7 @@ export function serverApiPlugin(): Plugin {
             const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
             const prefix = mariadbService.getAccountPrefix(domain);
             const ip = await getPublicServerIp();
-            const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
+            const baseDir = getDomainRoot(domain);
             const diskBytes = getDirSizeBytes(baseDir);
 
             let mysqlBytes = 0;
@@ -4910,17 +4977,18 @@ export function serverApiPlugin(): Plugin {
               mysqlBytes = Number(sizeRows[0]?.size_bytes || 0);
             } catch (e) {}
 
+            const vhostDocRoot = process.platform === 'linux' ? `/var/www/vhosts/${domain}/public_html` : path.join(baseDir, 'public_html');
             response.setHeader('Content-Type', 'application/json');
             response.end(JSON.stringify({
               success: true,
               username: prefix,
               primaryDomain: domain,
               sharedIp: ip,
-              homeDir: `/home/${prefix}`,
-              documentRoot: path.join(baseDir, 'public_html'),
+              homeDir: process.platform === 'linux' ? `/var/www/vhosts/${domain}` : baseDir,
+              documentRoot: vhostDocRoot,
               diskUsedFormatted: formatFileSize(diskBytes),
               mysqlUsedFormatted: formatFileSize(mysqlBytes),
-              sslStatus: fs.existsSync(path.join(baseDir, 'ssl', `${domain}.cert`)) ? 'Active' : 'Active'
+              sslStatus: 'Active'
             }));
           } catch (e: any) {
             response.statusCode = 500;
@@ -5263,7 +5331,7 @@ export function serverApiPlugin(): Plugin {
             const parsed = new URL('http://localhost' + url);
             const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
             const dirParam = (parsed.searchParams.get('dir') || '').replace(/^\/+/, '');
-            const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
+            const baseDir = getDomainRoot(domain);
             const targetDir = path.resolve(baseDir, dirParam);
 
             if (!targetDir.startsWith(baseDir)) {
@@ -5324,7 +5392,7 @@ export function serverApiPlugin(): Plugin {
             const body = await parseJsonBody(request);
             const domain = body.domain || 'turkyhub.com';
             const dirParam = (body.dir || '').replace(/^\/+/, '');
-            const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
+            const baseDir = getDomainRoot(domain);
             const targetDir = path.resolve(baseDir, dirParam);
             const itemPath = path.join(targetDir, body.name);
 
@@ -5355,7 +5423,7 @@ export function serverApiPlugin(): Plugin {
             const body = await parseJsonBody(request);
             const domain = body.domain || 'turkyhub.com';
             const dirParam = (body.dir || '').replace(/^\/+/, '');
-            const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
+            const baseDir = getDomainRoot(domain);
             const targetDir = path.resolve(baseDir, dirParam);
             const itemPath = path.join(targetDir, body.name);
 
@@ -5388,7 +5456,7 @@ export function serverApiPlugin(): Plugin {
             const body = await parseJsonBody(request);
             const domain = body.domain || 'turkyhub.com';
             const dirParam = (body.dir || '').replace(/^\/+/, '');
-            const baseDir = path.join(STORAGE_ROOT, 'domains', domain);
+            const baseDir = getDomainRoot(domain);
             const targetDir = path.resolve(baseDir, dirParam);
             const oldPath = path.join(targetDir, body.oldName);
             const newPath = path.join(targetDir, body.newName);
@@ -5509,6 +5577,534 @@ export function serverApiPlugin(): Plugin {
               success: true,
               message: 'Favicon updated successfully',
               faviconUrl: current.faviconUrl
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+        // =========================================================================
+        // 18. CPANEL EMAIL ACCOUNTS (/api/cpanel/email/list, create, delete)
+        // =========================================================================
+        if (url.startsWith('/api/cpanel/email/list') && request.method === 'GET') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const domainRoot = getDomainRoot(domain);
+            const emailFile = path.join(domainRoot, 'etc', 'email_accounts.json');
+            let accounts: any[] = [];
+            if (fs.existsSync(emailFile)) {
+              accounts = JSON.parse(fs.readFileSync(emailFile, 'utf-8'));
+            }
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, domain, accounts }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/email/create' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const rawUser = (body.username || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+            const quota = body.quota || '1024 MB';
+            if (!domain || !rawUser) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain and username are required.' }));
+              return;
+            }
+
+            const domainRoot = getDomainRoot(domain);
+            const etcDir = path.join(domainRoot, 'etc');
+            fs.mkdirSync(etcDir, { recursive: true });
+            const emailFile = path.join(etcDir, 'email_accounts.json');
+
+            let accounts: any[] = [];
+            if (fs.existsSync(emailFile)) {
+              try { accounts = JSON.parse(fs.readFileSync(emailFile, 'utf-8')); } catch (e) {}
+            }
+
+            const fullEmail = `${rawUser}@${domain}`;
+            if (accounts.some((a: any) => a.email.toLowerCase() === fullEmail)) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: `Email account "${fullEmail}" already exists.` }));
+              return;
+            }
+
+            // Create maildir structure
+            const mailUserDir = path.join(domainRoot, 'mail', rawUser);
+            fs.mkdirSync(path.join(mailUserDir, 'cur'), { recursive: true });
+            fs.mkdirSync(path.join(mailUserDir, 'new'), { recursive: true });
+            fs.mkdirSync(path.join(mailUserDir, 'tmp'), { recursive: true });
+
+            const newAccount = {
+              id: 'mail_' + Date.now(),
+              email: fullEmail,
+              username: rawUser,
+              domain,
+              quota,
+              usage: '0 MB',
+              created: new Date().toISOString()
+            };
+
+            accounts.push(newAccount);
+            fs.writeFileSync(emailFile, JSON.stringify(accounts, null, 2), 'utf-8');
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: `Email account ${fullEmail} created successfully.`, account: newAccount }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/email/delete' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const targetEmail = (body.email || '').trim().toLowerCase();
+            if (!domain || !targetEmail) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain and email are required.' }));
+              return;
+            }
+
+            const domainRoot = getDomainRoot(domain);
+            const emailFile = path.join(domainRoot, 'etc', 'email_accounts.json');
+            if (fs.existsSync(emailFile)) {
+              let accounts = JSON.parse(fs.readFileSync(emailFile, 'utf-8'));
+              accounts = accounts.filter((a: any) => a.email.toLowerCase() !== targetEmail);
+              fs.writeFileSync(emailFile, JSON.stringify(accounts, null, 2), 'utf-8');
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: `Email account ${targetEmail} removed.` }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 19. CPANEL EMAIL FORWARDERS (/api/cpanel/email/forwarders/*)
+        // =========================================================================
+        if (url.startsWith('/api/cpanel/email/forwarders/list') && request.method === 'GET') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const domainRoot = getDomainRoot(domain);
+            const fwdFile = path.join(domainRoot, 'etc', 'email_forwarders.json');
+            let forwarders: any[] = [];
+            if (fs.existsSync(fwdFile)) {
+              forwarders = JSON.parse(fs.readFileSync(fwdFile, 'utf-8'));
+            }
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, domain, forwarders }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/email/forwarders/create' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const source = (body.source || '').trim().toLowerCase();
+            const destination = (body.destination || '').trim();
+            if (!domain || !source || !destination) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain, source, and destination are required.' }));
+              return;
+            }
+
+            const domainRoot = getDomainRoot(domain);
+            const etcDir = path.join(domainRoot, 'etc');
+            fs.mkdirSync(etcDir, { recursive: true });
+            const fwdFile = path.join(etcDir, 'email_forwarders.json');
+
+            let forwarders: any[] = [];
+            if (fs.existsSync(fwdFile)) {
+              try { forwarders = JSON.parse(fs.readFileSync(fwdFile, 'utf-8')); } catch (e) {}
+            }
+
+            const newFwd = {
+              id: 'fwd_' + Date.now(),
+              source: source.includes('@') ? source : `${source}@${domain}`,
+              destination,
+              domain,
+              created: new Date().toISOString()
+            };
+
+            forwarders.push(newFwd);
+            fs.writeFileSync(fwdFile, JSON.stringify(forwarders, null, 2), 'utf-8');
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: `Forwarder created successfully.`, forwarder: newFwd }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/email/forwarders/delete' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const id = body.id;
+            const source = body.source;
+
+            const domainRoot = getDomainRoot(domain);
+            const fwdFile = path.join(domainRoot, 'etc', 'email_forwarders.json');
+            if (fs.existsSync(fwdFile)) {
+              let forwarders = JSON.parse(fs.readFileSync(fwdFile, 'utf-8'));
+              forwarders = forwarders.filter((f: any) => f.id !== id && f.source !== source);
+              fs.writeFileSync(fwdFile, JSON.stringify(forwarders, null, 2), 'utf-8');
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: 'Forwarder removed successfully.' }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 20. CPANEL FTP ACCOUNTS (/api/cpanel/ftp/*)
+        // =========================================================================
+        if (url.startsWith('/api/cpanel/ftp/list') && request.method === 'GET') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const domainRoot = getDomainRoot(domain);
+            const ftpFile = path.join(domainRoot, 'etc', 'ftp_users.json');
+            let accounts: any[] = [];
+            if (fs.existsSync(ftpFile)) {
+              accounts = JSON.parse(fs.readFileSync(ftpFile, 'utf-8'));
+            }
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, domain, accounts }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/ftp/create' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const rawUser = (body.username || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+            const directory = (body.directory || '/public_html').trim();
+            const quota = body.quota || 'Unlimited';
+
+            if (!domain || !rawUser) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain and FTP username are required.' }));
+              return;
+            }
+
+            const domainRoot = getDomainRoot(domain);
+            const etcDir = path.join(domainRoot, 'etc');
+            fs.mkdirSync(etcDir, { recursive: true });
+            const ftpFile = path.join(etcDir, 'ftp_users.json');
+
+            let accounts: any[] = [];
+            if (fs.existsSync(ftpFile)) {
+              try { accounts = JSON.parse(fs.readFileSync(ftpFile, 'utf-8')); } catch (e) {}
+            }
+
+            const ftpUsername = `${rawUser}@${domain}`;
+            if (accounts.some((a: any) => a.username.toLowerCase() === ftpUsername.toLowerCase())) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: `FTP account "${ftpUsername}" already exists.` }));
+              return;
+            }
+
+            const newFtp = {
+              id: 'ftp_' + Date.now(),
+              username: ftpUsername,
+              rawUser,
+              domain,
+              directory,
+              quota,
+              created: new Date().toISOString()
+            };
+
+            accounts.push(newFtp);
+            fs.writeFileSync(ftpFile, JSON.stringify(accounts, null, 2), 'utf-8');
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: `FTP account ${ftpUsername} created.`, account: newFtp }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/ftp/delete' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const targetUser = (body.username || '').trim().toLowerCase();
+
+            const domainRoot = getDomainRoot(domain);
+            const ftpFile = path.join(domainRoot, 'etc', 'ftp_users.json');
+            if (fs.existsSync(ftpFile)) {
+              let accounts = JSON.parse(fs.readFileSync(ftpFile, 'utf-8'));
+              accounts = accounts.filter((a: any) => a.username.toLowerCase() !== targetUser);
+              fs.writeFileSync(ftpFile, JSON.stringify(accounts, null, 2), 'utf-8');
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: `FTP account ${targetUser} deleted.` }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 21. CPANEL CRON JOBS (/api/cpanel/cron/*)
+        // =========================================================================
+        if (url.startsWith('/api/cpanel/cron/list') && request.method === 'GET') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const domainRoot = getDomainRoot(domain);
+            const cronFile = path.join(domainRoot, 'etc', 'cron_jobs.json');
+            let jobs: any[] = [];
+            if (fs.existsSync(cronFile)) {
+              jobs = JSON.parse(fs.readFileSync(cronFile, 'utf-8'));
+            }
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, domain, jobs }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/cron/create' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const minute = body.minute || '*';
+            const hour = body.hour || '*';
+            const day = body.day || '*';
+            const month = body.month || '*';
+            const weekday = body.weekday || '*';
+            const command = (body.command || '').trim();
+
+            if (!domain || !command) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Domain and command are required.' }));
+              return;
+            }
+
+            const domainRoot = getDomainRoot(domain);
+            const etcDir = path.join(domainRoot, 'etc');
+            fs.mkdirSync(etcDir, { recursive: true });
+            const cronFile = path.join(etcDir, 'cron_jobs.json');
+
+            let jobs: any[] = [];
+            if (fs.existsSync(cronFile)) {
+              try { jobs = JSON.parse(fs.readFileSync(cronFile, 'utf-8')); } catch (e) {}
+            }
+
+            const schedule = `${minute} ${hour} ${day} ${month} ${weekday}`;
+            const newJob = {
+              id: 'cron_' + Date.now(),
+              schedule,
+              minute,
+              hour,
+              day,
+              month,
+              weekday,
+              command,
+              domain,
+              created: new Date().toISOString()
+            };
+
+            jobs.push(newJob);
+            fs.writeFileSync(cronFile, JSON.stringify(jobs, null, 2), 'utf-8');
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: 'Cron job created successfully.', job: newJob }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/cron/delete' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const domain = (body.domain || '').trim().toLowerCase();
+            const id = body.id;
+
+            const domainRoot = getDomainRoot(domain);
+            const cronFile = path.join(domainRoot, 'etc', 'cron_jobs.json');
+            if (fs.existsSync(cronFile)) {
+              let jobs = JSON.parse(fs.readFileSync(cronFile, 'utf-8'));
+              jobs = jobs.filter((j: any) => j.id !== id);
+              fs.writeFileSync(cronFile, JSON.stringify(jobs, null, 2), 'utf-8');
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, message: 'Cron job deleted successfully.' }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 22. CPANEL SERVER INFO & RESOURCES (/api/cpanel/server/info, resources)
+        // =========================================================================
+        if (url === '/api/cpanel/server/info' && request.method === 'GET') {
+          try {
+            const publicIp = await getPublicServerIp();
+            const cpus = os.cpus();
+            const memTotal = os.totalmem();
+            const memFree = os.freemem();
+            const uptime = os.uptime();
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              hostname: os.hostname(),
+              platform: os.platform(),
+              release: os.release(),
+              arch: os.arch(),
+              publicIp,
+              uptimeSeconds: uptime,
+              uptimeHours: (uptime / 3600).toFixed(1),
+              cpuModel: cpus[0]?.model || 'Unknown',
+              cpuCores: cpus.length,
+              totalMemoryFormatted: formatFileSize(memTotal),
+              freeMemoryFormatted: formatFileSize(memFree),
+              serverSoftware: 'Nginx (Reverse Proxy) + Node.js Engine + MariaDB'
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        if (url === '/api/cpanel/server/resources' && request.method === 'GET') {
+          try {
+            const cpu = await getCpuUsage();
+            const totalMem = os.totalmem();
+            const freeMem = os.freemem();
+            const usedMem = totalMem - freeMem;
+            const memPct = Math.round((usedMem / totalMem) * 100);
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              cpu: { percentage: cpu },
+              memory: {
+                used: formatFileSize(usedMem),
+                total: formatFileSize(totalMem),
+                free: formatFileSize(freeMem),
+                percentage: memPct
+              },
+              timestamp: new Date().toISOString()
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // =========================================================================
+        // 23. CPANEL SYSTEM & DNS HEALTH DIAGNOSTICS (/api/cpanel/system/health)
+        // =========================================================================
+        if (url.startsWith('/api/cpanel/system/health') && request.method === 'GET') {
+          try {
+            const parsed = new URL('http://localhost' + url);
+            const domain = parsed.searchParams.get('domain') || 'turkyhub.com';
+            const cleanDomain = domain.toLowerCase().trim();
+            const publicIp = await getPublicServerIp();
+
+            const vhostDocRoot = process.platform === 'linux' ? `/var/www/vhosts/${cleanDomain}/public_html` : path.join(STORAGE_ROOT, 'domains', cleanDomain, 'public_html');
+            const docRootExists = fs.existsSync(vhostDocRoot);
+            
+            // Check Nginx configuration
+            const nginxConfPath = `/etc/nginx/sites-available/${cleanDomain}.conf`;
+            const nginxEnabledPath = `/etc/nginx/sites-enabled/${cleanDomain}.conf`;
+            const nginxConfigured = fs.existsSync(nginxConfPath);
+            const nginxEnabled = fs.existsSync(nginxEnabledPath);
+
+            // Check DNS resolution
+            let localDnsResolved: string[] = [];
+            let googleDnsResolved: string[] = [];
+            let dnsMatch = false;
+
+            try {
+              localDnsResolved = await dns.promises.resolve4(cleanDomain).catch(() => []);
+            } catch (e) {}
+
+            try {
+              const resolver = new dns.promises.Resolver();
+              resolver.setServers(['8.8.8.8', '1.1.1.1']);
+              googleDnsResolved = await resolver.resolve4(cleanDomain).catch(() => []);
+            } catch (e) {}
+
+            dnsMatch = googleDnsResolved.includes(publicIp) || localDnsResolved.includes(publicIp);
+
+            // Check SSL status
+            const liveCertPath = `/etc/letsencrypt/live/${cleanDomain}/fullchain.pem`;
+            const hasRealSsl = fs.existsSync(liveCertPath);
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              domain: cleanDomain,
+              serverIp: publicIp,
+              diagnostics: {
+                docRoot: {
+                  path: vhostDocRoot,
+                  exists: docRootExists,
+                  status: docRootExists ? 'OK' : 'MISSING'
+                },
+                webServer: {
+                  type: 'nginx',
+                  confExists: nginxConfigured,
+                  enabled: nginxEnabled,
+                  status: (nginxConfigured && nginxEnabled) ? 'OK' : 'NOT_ENABLED'
+                },
+                dns: {
+                  serverPublicIp: publicIp,
+                  localDnsIps: localDnsResolved,
+                  publicDnsIps: googleDnsResolved,
+                  pointingToVps: dnsMatch,
+                  propagationStatus: dnsMatch ? 'RESOLVED' : 'PENDING_OR_MISCONFIGURED'
+                },
+                ssl: {
+                  isLetEncryptActive: hasRealSsl,
+                  type: hasRealSsl ? "Let's Encrypt Production SSL" : 'Snakeoil Fallback SSL (Port 443 active)'
+                }
+              }
             }));
           } catch (e: any) {
             response.statusCode = 500;

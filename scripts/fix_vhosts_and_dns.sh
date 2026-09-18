@@ -268,24 +268,34 @@ for DOMAIN in "${DOMAINS[@]}"; do
     echo "----------------------------------------------------------"
     echo "[+] Configuring Customer VirtualHost & DNS for: ${DOMAIN}"
     
+    VHOST_BASE="/var/www/vhosts"
+    VHOST_DIR="${VHOST_BASE}/${DOMAIN}"
+    mkdir -p "${VHOST_DIR}/public_html" "${VHOST_DIR}/logs" "${VHOST_DIR}/etc"
+    DOCROOT="${VHOST_DIR}/public_html"
+    LOGDIR="${VHOST_DIR}/logs"
+    chown -R www-data:www-data "${VHOST_DIR}" 2>/dev/null || true
+    chmod 755 "${VHOST_DIR}" 2>/dev/null || true
+    chmod 755 "${DOCROOT}" 2>/dev/null || true
+
+    # Bridge with server_storage so cPanel File Manager and backend are 100% in sync
+    mkdir -p "${STORAGE_DIR}/domains/${DOMAIN}"
+    if [ -d "${STORAGE_DIR}/domains/${DOMAIN}/public_html" ] && [ ! -L "${STORAGE_DIR}/domains/${DOMAIN}/public_html" ]; then
+        cp -rn "${STORAGE_DIR}/domains/${DOMAIN}/public_html/"* "${DOCROOT}/" 2>/dev/null || true
+        rm -rf "${STORAGE_DIR}/domains/${DOMAIN}/public_html"
+    fi
+    ln -sfn "${DOCROOT}" "${STORAGE_DIR}/domains/${DOMAIN}/public_html"
+    ln -sfn "${LOGDIR}" "${STORAGE_DIR}/domains/${DOMAIN}/logs"
+
     if [ "$DOMAIN" = "turkyhub.com" ]; then
         TENANT_USER="turkyhu1"
         TENANT_HOME="/home/${TENANT_USER}"
         if ! id -u "$TENANT_USER" &>/dev/null; then
             useradd -m -s /bin/bash "$TENANT_USER" 2>/dev/null || true
         fi
-        mkdir -p "${TENANT_HOME}/public_html" "${TENANT_HOME}/logs"
-        DOCROOT="${TENANT_HOME}/public_html"
-        LOGDIR="${TENANT_HOME}/logs"
-
-        # Bridge with server_storage so cPanel File Manager also works seamlessly
-        mkdir -p "${STORAGE_DIR}/domains/${DOMAIN}"
-        if [ -d "${STORAGE_DIR}/domains/${DOMAIN}/public_html" ] && [ ! -L "${STORAGE_DIR}/domains/${DOMAIN}/public_html" ]; then
-            cp -rn "${STORAGE_DIR}/domains/${DOMAIN}/public_html/"* "${TENANT_HOME}/public_html/" 2>/dev/null || true
-            rm -rf "${STORAGE_DIR}/domains/${DOMAIN}/public_html"
-        fi
-        ln -sfn "${TENANT_HOME}/public_html" "${STORAGE_DIR}/domains/${DOMAIN}/public_html"
-        ln -sfn "${TENANT_HOME}/logs" "${STORAGE_DIR}/domains/${DOMAIN}/logs"
+        mkdir -p "${TENANT_HOME}"
+        ln -sfn "${DOCROOT}" "${TENANT_HOME}/public_html"
+        ln -sfn "${LOGDIR}" "${TENANT_HOME}/logs"
+        chown -R "${TENANT_USER}:www-data" "${TENANT_HOME}" 2>/dev/null || true
 
         # Tenant PHP-FPM socket check
         TENANT_PHP_SOCK="/run/php/php8.2-fpm-turkyhu1.sock"
@@ -293,9 +303,6 @@ for DOMAIN in "${DOMAINS[@]}"; do
             TENANT_PHP_SOCK="$PHP_SOCK"
         fi
     else
-        DOCROOT="${STORAGE_DIR}/domains/${DOMAIN}/public_html"
-        LOGDIR="${STORAGE_DIR}/domains/${DOMAIN}/logs"
-        mkdir -p "$DOCROOT" "$LOGDIR"
         TENANT_PHP_SOCK="$PHP_SOCK"
     fi
     

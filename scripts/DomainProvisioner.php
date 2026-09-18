@@ -81,7 +81,7 @@ class DomainProvisioner {
             'domain' => $this->domain,
             'tenantUsername' => $this->tenantUser,
             'phpVersion' => $this->phpVersion,
-            'webroot' => "/home/{$this->tenantUser}/public_html",
+            'webroot' => "/var/www/vhosts/{$this->domain}/public_html",
             'serverIp' => $this->serverIp,
             'database' => "{$this->tenantUser}_db",
             'dbUser' => $this->tenantUser,
