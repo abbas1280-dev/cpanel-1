@@ -1,20 +1,26 @@
 ﻿#!/usr/bin/env bash
 set -e
 
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 echo "=========================================================="
 echo " Starting Sitechai cPanel Live Production VPS Deployment "
 echo "=========================================================="
 
+# Preseed debconf so phpmyadmin NEVER shows interactive prompts
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | sudo debconf-set-selections 2>/dev/null || true
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean false" | sudo debconf-set-selections 2>/dev/null || true
+
 # 1. Update and install base packages
-export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-sudo apt-get install -y git curl wget unzip nginx mariadb-server php-fpm php-mysql php-mbstring php-zip php-gd php-json php-curl
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" git curl wget unzip nginx mariadb-server php-fpm php-mysql php-mbstring php-zip php-gd php-json php-curl
 
 # 2. Install Node.js 20 LTS
 if ! command -v node &> /dev/null; then
     echo "[+] Installing Node.js 20 LTS..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
 fi
 echo "[+] Node version: $(node -v), NPM version: $(npm -v)"
 
@@ -34,15 +40,14 @@ GRANT ALL PRIVILEGES ON *.* TO 'cpanel_admin'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOSQL
 
-# 4. Install phpMyAdmin 5.2.x if missing
+# 4. Install phpMyAdmin 5.2.x cleanly without interactive prompts
 if [ ! -d "/usr/share/phpmyadmin" ]; then
-    echo "[+] Installing phpMyAdmin..."
-    sudo apt-get install -y phpmyadmin || {
-        wget -q https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.zip -O /tmp/pma.zip
-        sudo unzip -q /tmp/pma.zip -d /usr/share/
-        sudo mv /usr/share/phpMyAdmin-5.2.1-all-languages /usr/share/phpmyadmin
-        rm -f /tmp/pma.zip
-    }
+    echo "[+] Installing phpMyAdmin directly..."
+    wget -q https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.zip -O /tmp/pma.zip
+    sudo unzip -qo /tmp/pma.zip -d /usr/share/
+    sudo rm -rf /usr/share/phpmyadmin
+    sudo mv /usr/share/phpMyAdmin-5.2.1-all-languages /usr/share/phpmyadmin
+    rm -f /tmp/pma.zip
 fi
 
 # Configure phpMyAdmin Nginx virtual host on port 8080
@@ -60,11 +65,15 @@ $cfg['Servers'][$i]['compress'] = false;
 $cfg['Servers'][$i]['AllowNoPassword'] = false;
 EOF
 
-PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" | head -n 1)
+PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
+if [ -z "$PHP_SOCK" ]; then
+    sudo systemctl restart php*-fpm || true
+    PHP_SOCK=$(find /run/php/ -name "php*-fpm.sock" 2>/dev/null | head -n 1)
+fi
 
 sudo bash -c "cat > /etc/nginx/sites-available/phpmyadmin.conf" << EOF
 server {
-    listen 8080;
+    listen 8080 default_server;
     server_name _;
     root /usr/share/phpmyadmin;
     index index.php index.html;
@@ -83,7 +92,7 @@ server {
 EOF
 
 sudo ln -sf /etc/nginx/sites-available/phpmyadmin.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx || sudo service nginx reload
+sudo nginx -t && (sudo systemctl reload nginx || sudo service nginx reload)
 
 # 5. Clone or update repository
 REPO_DIR="$HOME/cpanel-1"
