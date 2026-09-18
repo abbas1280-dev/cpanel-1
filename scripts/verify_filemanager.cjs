@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -109,7 +109,7 @@ async function runTests() {
       domain: DOMAIN,
       path: '/public_html/test_audit_dir',
       filename: 'app.php',
-      content: '<?php echo "Hello Sitechai Audit"; ?>'
+      content: '<?php echo "Hello HOSTER 1280 Audit"; ?>'
     });
     assert(createFileRes.statusCode === 200 && createFileRes.data.success, 'Create file API succeeded');
     const diskFile = path.join(diskFolder, 'app.php');
@@ -128,7 +128,7 @@ async function runTests() {
       path: '/public_html/test_audit_dir',
       filename: 'app.php'
     });
-    assert(readRes.statusCode === 200 && readRes.data.content && readRes.data.content.includes('Hello Sitechai Audit'), 'File content read accurately');
+    assert(readRes.statusCode === 200 && readRes.data.content && readRes.data.content.includes('Hello HOSTER 1280 Audit'), 'File content read accurately');
 
     // 6. Save File Content (Edit)
     console.log('\n6. Testing Save File Content (/api/filemanager/save-file)...');

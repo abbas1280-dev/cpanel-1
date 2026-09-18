@@ -5,7 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
 echo "=========================================================="
-echo " Starting Sitechai cPanel Live Production VPS Deployment "
+echo " Starting HOSTER 1280 cPanel Live Production VPS Deployment "
 echo "=========================================================="
 
 # Preseed debconf so phpmyadmin NEVER shows interactive prompts

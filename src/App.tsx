@@ -14,7 +14,7 @@ import { CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 
 const INITIAL_USER: UserProfile = {
   name: 'TAMIM HASAN',
-  email: 'tamim.hasan@sitechai.com',
+  email: 'tamim.hasan@hoster1280.shop',
   phone: '+880 1712-345678',
   companyName: 'TURKY HUB',
   address: 'Mirpur, Dhaka',
@@ -41,7 +41,7 @@ export function App() {
 
   // User State (persisted to localStorage)
   const [user, setUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('sitechai_user');
+    const saved = localStorage.getItem('hoster1280_user') || localStorage.getItem('sitechai_user');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -54,7 +54,7 @@ export function App() {
 
   // Services State (Loaded from real server backend)
   const [services, setServices] = useState<ServiceItem[]>(() => {
-    const saved = localStorage.getItem('sitechai_services');
+    const saved = localStorage.getItem('hoster1280_services') || localStorage.getItem('sitechai_services');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -67,7 +67,7 @@ export function App() {
 
   // Domains State (Loaded from real backend)
   const [domains, setDomains] = useState<DomainItem[]>(() => {
-    const saved = localStorage.getItem('sitechai_domains');
+    const saved = localStorage.getItem('hoster1280_domains') || localStorage.getItem('sitechai_domains');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -168,15 +168,15 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('sitechai_user', JSON.stringify(user));
+    localStorage.setItem('hoster1280_user', JSON.stringify(user));
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('sitechai_services', JSON.stringify(services));
+    localStorage.setItem('hoster1280_services', JSON.stringify(services));
   }, [services]);
 
   useEffect(() => {
-    localStorage.setItem('sitechai_domains', JSON.stringify(domains));
+    localStorage.setItem('hoster1280_domains', JSON.stringify(domains));
   }, [domains]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -478,7 +478,7 @@ export function App() {
             </div>
             <h3 className="text-lg font-bold text-slate-800">Confirm Sign Out</h3>
             <p className="text-xs text-slate-500 mt-1 mb-6">
-              Are you sure you want to end your current session on Sitechai Portal?
+              Are you sure you want to end your current session on HOSTER 1280 Client Portal?
             </p>
             <div className="flex items-center justify-center gap-3">
               <button

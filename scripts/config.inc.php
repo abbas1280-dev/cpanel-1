@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Sitechai cPanel Jupiter - Production phpMyAdmin SSO Configuration
+ * HOSTER 1280 cPanel Jupiter - Production phpMyAdmin SSO Configuration
  */
 
 // Fix HTTPS mismatch when behind Cloudflare / Freestyle Edge Reverse Proxy

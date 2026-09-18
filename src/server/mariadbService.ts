@@ -692,7 +692,7 @@ export async function exportDatabase(accountPrefix: string, fullDbName: string) 
   try {
     await conn.query(`USE \`${fullDbName}\``);
 
-    let sqlDump = `-- Sitechai MariaDB Database Export\n-- Database: ${fullDbName}\n-- Export Date: ${new Date().toISOString()}\n-- Server Version: 11.8.6-MariaDB\n\nSET FOREIGN_KEY_CHECKS=0;\n\n`;
+    let sqlDump = `-- HOSTER 1280 MariaDB Database Export\n-- Database: ${fullDbName}\n-- Export Date: ${new Date().toISOString()}\n-- Server Version: 11.8.6-MariaDB\n\nSET FOREIGN_KEY_CHECKS=0;\n\n`;
 
     const [tables]: any = await conn.query('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
     const tableNames = tables.map((t: any) => Object.values(t)[0] as string);

@@ -104,8 +104,8 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   // Domain input form states
   const [domainNamePart, setDomainNamePart] = useState('example');
   const [tldPart, setTldPart] = useState('com');
-  const [phpVersion, setPhpVersion] = useState('8.2');
-  const [selectedQuota, setSelectedQuota] = useState('Unlimited Shared Pool');
+  const phpVersion = '8.2';
+  const selectedQuota = 'Unlimited Shared Pool';
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Dynamic public server IP state
@@ -202,7 +202,18 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
   // Trigger automated multi-tenant provisioning
   const handleUseDomain = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanDomain = `${domainNamePart.trim().replace(/\./g, '')}.${tldPart.trim().replace(/\./g, '')}`.toLowerCase();
+    
+    // Support user entering full domain "turkyhub.com" or just "turkyhub"
+    let rawName = domainNamePart.trim().toLowerCase();
+    let rawTld = tldPart.trim().replace(/^\./, '').toLowerCase() || 'com';
+
+    if (rawName.includes('.')) {
+      const dotIndex = rawName.indexOf('.');
+      rawTld = rawName.slice(dotIndex + 1);
+      rawName = rawName.slice(0, dotIndex);
+    }
+
+    const cleanDomain = `${rawName.replace(/\./g, '')}.${rawTld.replace(/\./g, '')}`;
     
     // Domain validation
     const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
@@ -230,8 +241,8 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           domain: cleanDomain,
-          phpVersion,
-          quota: selectedQuota
+          phpVersion: '8.2',
+          quota: 'Unlimited Shared Pool'
         })
       });
       if (res.ok) {
@@ -241,8 +252,8 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
       console.warn('Backend provisioning call fallback:', err.message);
     }
 
-    const realServerIp = provisionedData?.serverIp || publicServerIp || serverMetrics?.serverIp || '192.168.0.104';
-    const generatedUsername = provisionedData?.tenantUsername || `u_${domainNamePart.slice(0, 7).replace(/[^a-zA-Z0-9]/g, '')}`;
+    const realServerIp = provisionedData?.serverIp || publicServerIp || serverMetrics?.serverIp || '208.72.218.129';
+    const generatedUsername = provisionedData?.tenantUsername || `u_${rawName.slice(0, 7).replace(/[^a-zA-Z0-9]/g, '')}`;
     const generatedPassword = provisionedData?.password || `Sec#${Math.random().toString(36).slice(-6)}!2026`;
 
     const interval = setInterval(() => {
@@ -262,8 +273,8 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             nextDueDate: 'Friday, October 16th, 2026',
             status: 'Active',
             serverIp: realServerIp,
-            phpVersion,
-            quota: selectedQuota,
+            phpVersion: '8.2',
+            quota: 'Unlimited Shared Pool',
             tenantUsername: generatedUsername,
             nameservers: ['ns1.hoster1280.shop', 'ns2.hoster1280.shop']
           };
@@ -274,7 +285,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             password: generatedPassword,
             ip: realServerIp,
             cpanelUrl: `https://cpanel.${cleanDomain}`,
-            phpVersion
+            phpVersion: '8.2'
           });
 
           onAddService(newService);
@@ -749,79 +760,90 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
             </div>
 
             <div className="bg-[#11074a] p-6 sm:p-8">
-              <form onSubmit={handleUseDomain} className="max-w-5xl mx-auto space-y-4">
-                <div className="flex flex-col sm:flex-row items-end gap-3">
-                  <div className="w-full sm:flex-[3]">
-                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">Domain Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={domainNamePart}
-                      onChange={(e) => {
-                        setDomainNamePart(e.target.value);
-                        setValidationError(null);
-                      }}
-                      placeholder="example"
-                      className="w-full px-4 py-2.5 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
-                    />
+              <form onSubmit={handleUseDomain} className="max-w-4xl mx-auto space-y-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3.5">
+                  {/* Wide Responsive Domain Input */}
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-bold text-indigo-200 block mb-1.5 flex items-center justify-between">
+                      <span>Domain Name</span>
+                      <span className="text-[11px] text-indigo-300/80 font-normal">e.g. turkyhub or mybrand</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <Globe className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={domainNamePart}
+                        onChange={(e) => {
+                          setDomainNamePart(e.target.value);
+                          setValidationError(null);
+                        }}
+                        placeholder="Enter domain name (e.g. turkyhub)"
+                        className="w-full pl-10 pr-4 py-3 bg-white text-slate-900 font-semibold rounded-xl text-sm sm:text-base border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 shadow-sm placeholder:text-slate-400 placeholder:font-normal transition-all"
+                      />
+                    </div>
                   </div>
 
-                  <div className="w-full sm:w-28">
-                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">TLD</label>
-                    <input
-                      type="text"
-                      required
-                      value={tldPart}
-                      onChange={(e) => {
-                        setTldPart(e.target.value);
-                        setValidationError(null);
-                      }}
-                      placeholder="com"
-                      className="w-full px-4 py-2.5 bg-white text-slate-800 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-slate-400"
-                    />
+                  {/* Clean TLD Dropdown / Extension Selector */}
+                  <div className="w-full sm:w-44 shrink-0">
+                    <label className="text-xs font-bold text-indigo-200 block mb-1.5">
+                      Extension (TLD)
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={tldPart}
+                        onChange={(e) => {
+                          setTldPart(e.target.value);
+                          setValidationError(null);
+                        }}
+                        className="w-full px-4 py-3 bg-white text-slate-900 font-bold rounded-xl text-sm sm:text-base border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 shadow-sm cursor-pointer transition-all appearance-none pr-9"
+                      >
+                        <option value="com">.com</option>
+                        <option value="shop">.shop</option>
+                        <option value="net">.net</option>
+                        <option value="org">.org</option>
+                        <option value="xyz">.xyz</option>
+                        <option value="io">.io</option>
+                        <option value="online">.online</option>
+                        <option value="site">.site</option>
+                        <option value="app">.app</option>
+                        <option value="dev">.dev</option>
+                        <option value="info">.info</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="w-full sm:w-44">
-                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">PHP Version</label>
-                    <select
-                      value={phpVersion}
-                      onChange={(e) => setPhpVersion(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white text-slate-800 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
-                    >
-                      <option value="8.3">PHP 8.3 (Recommended)</option>
-                      <option value="8.2">PHP 8.2 (Stable)</option>
-                      <option value="8.1">PHP 8.1</option>
-                      <option value="7.4">PHP 7.4 (Legacy)</option>
-                    </select>
-                  </div>
-
-                  <div className="w-full sm:w-56">
-                    <label className="text-[11px] font-bold text-indigo-200 block mb-1">Package / Quota</label>
-                    <select
-                      value={selectedQuota}
-                      onChange={(e) => setSelectedQuota(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white text-slate-800 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
-                    >
-                      <option value="Unlimited Shared Pool">Unlimited Cloud Pool</option>
-                      <option value="10 GB SSD">Standard Cloud (10 GB)</option>
-                      <option value="50 GB NVMe">Professional (50 GB)</option>
-                      <option value="100 GB NVMe">Enterprise (100 GB)</option>
-                    </select>
-                  </div>
-
-                  <div className="w-full sm:w-auto">
+                  {/* Prominent Action Button */}
+                  <div className="w-full sm:w-auto shrink-0">
                     <button
                       type="submit"
                       disabled={provisionStage === 'provisioning'}
-                      className="w-full sm:w-auto px-8 py-2.5 bg-[#0d0538] hover:bg-[#1a0f63] text-white font-bold text-sm rounded-lg transition-colors border border-indigo-900/80 shadow-md active:scale-95 disabled:opacity-50"
+                      className="w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-sm sm:text-base rounded-xl transition-all shadow-lg shadow-indigo-950/40 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 border border-indigo-400/30 whitespace-nowrap cursor-pointer"
                     >
-                      Use
+                      <span>Use / Continue</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
+                {/* Dynamic Resource Pool Badge */}
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-indigo-200/80 pt-1 px-1 gap-2">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Default PHP 8.2 Engine (Dedicated Isolated Tenant FPM Socket)
+                  </span>
+                  <span className="text-indigo-300/80 font-mono">
+                    Dynamic Shared NVMe Resource Pool (No Artificial Quota Limits)
+                  </span>
+                </div>
+
                 {validationError && (
-                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-lg text-xs text-rose-200 flex items-center gap-2">
+                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{validationError}</span>
                   </div>
@@ -842,7 +864,7 @@ export const MyServicesView: React.FC<MyServicesViewProps> = ({
                     Automated Multi-Tenant Provisioning in Progress
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Domain: <span className="font-semibold text-indigo-600">{domainNamePart}.{tldPart}</span> | Engine: <span className="font-semibold text-indigo-600">PHP {phpVersion}</span> | Cluster: <span className="font-semibold text-indigo-600">hoster1280.shop</span>
+                    Domain: <span className="font-semibold text-indigo-600">{domainNamePart}.{tldPart}</span> | Engine: <span className="font-semibold text-indigo-600">PHP 8.2 (Dedicated Isolated FPM)</span> | Cluster: <span className="font-semibold text-indigo-600">hoster1280.shop</span>
                   </p>
                 </div>
               </div>

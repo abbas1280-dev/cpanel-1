@@ -74,7 +74,7 @@ header('Content-Type: text/html; charset=utf-8');
 
 const ssoConfig = `<?php
 /**
- * Sitechai Cloud Single Sign-On Configuration
+ * HOSTER 1280 Cloud Single Sign-On Configuration
  */
 $cfg['Servers'][1]['auth_type'] = 'signon';
 $cfg['Servers'][1]['SignonSession'] = 'SignonSession';

@@ -170,7 +170,7 @@ export const MyDomainsView: React.FC<MyDomainsViewProps> = ({
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-slate-800 mb-1">Register or Transfer Domain</h3>
-            <p className="text-xs text-slate-500 mb-4">Add a new domain name to your Sitechai client portfolio.</p>
+            <p className="text-xs text-slate-500 mb-4">Add a new domain name to your HOSTER 1280 client portfolio.</p>
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">Domain Name</label>

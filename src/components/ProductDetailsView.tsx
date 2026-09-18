@@ -76,7 +76,7 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({
   const username = `${service.domain.split('.')[0].slice(0, 7).replace(/[^a-zA-Z0-9]/g, '')}1`.toLowerCase();
   const [cpanelPassword, setCpanelPassword] = useState('Sec#Host2026!Key');
   const liveIp = serverMetrics?.serverIp || service.serverIp || '192.168.0.104';
-  const serverHost = serverMetrics?.hostname ? `${serverMetrics.hostname.toLowerCase()}.local` : 'sitechai-cloud.local';
+  const serverHost = serverMetrics?.hostname ? `${serverMetrics.hostname.toLowerCase()}.local` : 'hoster1280.shop';
   const ns1 = service.nameservers?.[0] || 'ns1.hoster1280.shop';
   const ns2 = service.nameservers?.[1] || 'ns2.hoster1280.shop';
 
@@ -480,7 +480,7 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({
             }`}
           >
             {isActive
-              ? 'This hosting package is currently Active and running on Sitechai Shared Cloud Cluster.'
+              ? 'This hosting package is currently Active and running on HOSTER 1280 High-Performance Cloud Cluster.'
               : isCancelled
               ? 'This hosting package is currently Cancelled.'
               : 'This hosting package is currently Terminated.'}
@@ -662,7 +662,7 @@ export const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({
             <div className="space-y-2">
               <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs hover:bg-slate-50 cursor-pointer">
                 <div>
-                  <span className="font-bold text-slate-800 block">Sitechai System Mailer</span>
+                  <span className="font-bold text-slate-800 block">HOSTER 1280 System Mailer</span>
                   <span className="text-slate-500 text-[11px]">Welcome to your new cPanel web hosting service!</span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-mono">Today, 03:40</span>

@@ -66,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-bold tracking-tight text-white flex items-center gap-0.5">
-                Sitechai
+                HOSTER 1280
               </span>
               <span className="text-[10px] uppercase font-semibold tracking-wider text-indigo-300/70">
                 Client Portal
