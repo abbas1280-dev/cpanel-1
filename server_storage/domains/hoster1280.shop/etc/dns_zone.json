@@ -1,7 +1,7 @@
 [
   {
-    "id": "rec-1789710788660-1",
-    "name": "topup1280.shop",
+    "id": "rec-1789710788666-1",
+    "name": "hoster1280.shop",
     "type": "A",
     "value": "192.168.0.104",
     "ttl": 14400,
@@ -9,17 +9,17 @@
     "managedBy": "HOSTER 1280 DNS"
   },
   {
-    "id": "rec-1789710788660-2",
-    "name": "www.topup1280.shop",
+    "id": "rec-1789710788666-2",
+    "name": "www.hoster1280.shop",
     "type": "CNAME",
-    "value": "topup1280.shop",
+    "value": "hoster1280.shop",
     "ttl": 14400,
     "status": "Active",
     "managedBy": "HOSTER 1280 DNS"
   },
   {
-    "id": "rec-1789710788660-3",
-    "name": "topup1280.shop",
+    "id": "rec-1789710788666-3",
+    "name": "hoster1280.shop",
     "type": "NS",
     "value": "ns1.hoster1280.shop",
     "ttl": 86400,
@@ -27,8 +27,8 @@
     "managedBy": "hoster1280.shop DNS"
   },
   {
-    "id": "rec-1789710788660-4",
-    "name": "topup1280.shop",
+    "id": "rec-1789710788666-4",
+    "name": "hoster1280.shop",
     "type": "NS",
     "value": "ns2.hoster1280.shop",
     "ttl": 86400,

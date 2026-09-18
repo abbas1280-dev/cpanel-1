@@ -1,0 +1,3 @@
+# HOSTER 1280 Server Configuration for hoster1280.shop
+RewriteEngine On
+DirectoryIndex index.html index.php

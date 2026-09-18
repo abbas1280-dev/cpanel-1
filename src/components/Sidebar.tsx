@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Server, Globe, User, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Server, Globe, User, ShieldCheck, Settings } from 'lucide-react';
 import { ActiveTab } from '../types';
 
 interface SidebarProps {
@@ -7,25 +7,21 @@ interface SidebarProps {
   setActiveTab: (tab: ActiveTab) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  domainsCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   isMobileOpen,
-  setIsMobileOpen
+  setIsMobileOpen,
+  domainsCount
 }) => {
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <LayoutDashboard className="w-5 h-5" />,
-    },
-    {
-      id: 'cpanel',
-      label: 'cPanel Hosting Panel',
-      icon: <span className="font-black text-xs px-1.5 py-0.5 bg-[#ff6c2c] text-white rounded">cP</span>,
-      badge: 'Live',
     },
     {
       id: 'services',
@@ -36,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'domains',
       label: 'My Domains',
       icon: <Globe className="w-5 h-5" />,
-      badge: '6',
+      badge: domainsCount && domainsCount > 0 ? String(domainsCount) : undefined,
     },
   ];
 
@@ -141,24 +137,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={() => {
-              setActiveTab('cpanel');
+              setActiveTab('settings');
               setIsMobileOpen(false);
             }}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-lg text-sm font-medium transition-all group ${
-              activeTab === 'cpanel'
-                ? 'bg-[#22157d] text-white shadow-md shadow-indigo-950/40 border-l-4 border-orange-500 font-semibold'
+              activeTab === 'settings'
+                ? 'bg-[#22157d] text-white shadow-md shadow-indigo-950/40 border-l-4 border-blue-400 font-semibold'
                 : 'text-indigo-100/80 hover:bg-[#1c106b] hover:text-white'
             }`}
           >
             <div className="flex items-center gap-3">
-              <span className="w-5 h-5 rounded bg-[#ff6c2c] text-white flex items-center justify-center font-black text-[10px] shadow-sm">
-                cP
+              <span className={`transition-transform duration-200 ${activeTab === 'settings' ? 'text-blue-300' : 'text-indigo-300 group-hover:text-white'}`}>
+                <Settings className="w-5 h-5" />
               </span>
-              <span>cPanel Dashboard</span>
+              <span>General Settings</span>
             </div>
-            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">
-              Live
-            </span>
           </button>
         </div>
 

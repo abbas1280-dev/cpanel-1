@@ -1,0 +1,17 @@
+[
+  {
+    "domain": "hoster1280.shop",
+    "documentRoot": "/public_html",
+    "isMain": true,
+    "type": "primary",
+    "redirectsTo": null,
+    "forceHttps": false,
+    "status": "active",
+    "dnsStatus": "active",
+    "sslStatus": "active",
+    "webServerStatus": "active",
+    "createdAt": "2026-09-18T05:38:19.220Z",
+    "updatedAt": "2026-09-18T05:38:19.220Z",
+    "accountUsername": "hoster11"
+  }
+]

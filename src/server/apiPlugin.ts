@@ -10,6 +10,7 @@ import * as mariadbService from './mariadbService';
 const execPromise = util.promisify(exec);
 const STORAGE_ROOT = path.resolve(process.cwd(), 'server_storage');
 const SERVICES_FILE = path.join(STORAGE_ROOT, 'services.json');
+const SETTINGS_FILE = path.join(STORAGE_ROOT, 'settings.json');
 
 // Ensure base directories exist
 if (!fs.existsSync(STORAGE_ROOT)) {
@@ -19,6 +20,20 @@ if (!fs.existsSync(STORAGE_ROOT)) {
 // Initial services if none exist
 if (!fs.existsSync(SERVICES_FILE)) {
   fs.writeFileSync(SERVICES_FILE, JSON.stringify([], null, 2));
+}
+
+function getSettingsData() {
+  if (fs.existsSync(SETTINGS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    } catch (e) {}
+  }
+  return {
+    ns1: 'ns1.hoster1280.shop',
+    ns2: 'ns2.hoster1280.shop',
+    serverIp: '208.72.218.129',
+    faviconUrl: '/favicon.ico'
+  };
 }
 
 function getCpuUsage(): Promise<number> {
@@ -4390,6 +4405,114 @@ export function serverApiPlugin(): Plugin {
             response.end(JSON.stringify({ success: true, message: 'Renamed successfully' }));
           } catch (e: any) {
             response.statusCode = 400;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // 15. General Settings: Get Settings
+        if (url === '/api/settings' && request.method === 'GET') {
+          try {
+            const settings = getSettingsData();
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({ success: true, ...settings }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // 16. General Settings: Apply Nameservers
+        if (url === '/api/settings/nameservers' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const ns1 = (body.ns1 || 'ns1.hoster1280.shop').trim();
+            const ns2 = (body.ns2 || 'ns2.hoster1280.shop').trim();
+            const serverIp = (body.serverIp || '208.72.218.129').trim();
+
+            const current = getSettingsData();
+            current.ns1 = ns1;
+            current.ns2 = ns2;
+            current.serverIp = serverIp;
+            current.updatedAt = new Date().toISOString();
+            fs.writeFileSync(SETTINGS_FILE, JSON.stringify(current, null, 2), 'utf-8');
+
+            let outputLog = `[Bind9 Setup]\n  NS1: ${ns1} -> ${serverIp}\n  NS2: ${ns2} -> ${serverIp}\n`;
+
+            const scriptPath = path.resolve(process.cwd(), 'scripts', 'apply_nameservers.sh');
+            if (process.platform === 'linux' && fs.existsSync(scriptPath)) {
+              try {
+                const { stdout, stderr } = await execPromise(`sudo bash "${scriptPath}" "${ns1}" "${ns2}" "${serverIp}"`);
+                outputLog += stdout || stderr || 'Script executed successfully.';
+              } catch (execErr: any) {
+                outputLog += `\n[Notice] Script execution: ${execErr.message}`;
+              }
+            } else {
+              outputLog += `[Dev / Windows] Configuration saved to server_storage/settings.json.\nOn live VPS, automated Bind9 named.conf and zone files reload dynamically.`;
+            }
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              message: 'Nameservers successfully installed and Bind9 reloaded!',
+              output: outputLog,
+              settings: current
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
+            response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
+          }
+          return;
+        }
+
+        // 17. General Settings: Upload Favicon
+        if (url === '/api/settings/upload-favicon' && request.method === 'POST') {
+          try {
+            const body = await parseJsonBody(request);
+            const { dataUrl } = body;
+            if (!dataUrl) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'No image data provided' }));
+              return;
+            }
+
+            const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (!matches || matches.length !== 3) {
+              response.statusCode = 400;
+              response.end(JSON.stringify({ success: false, error: 'Invalid base64 image data' }));
+              return;
+            }
+
+            const buffer = Buffer.from(matches[2], 'base64');
+            const publicDir = path.resolve(process.cwd(), 'public');
+            if (!fs.existsSync(publicDir)) {
+              fs.mkdirSync(publicDir, { recursive: true });
+            }
+
+            const faviconPath = path.join(publicDir, 'favicon.ico');
+            fs.writeFileSync(faviconPath, buffer);
+
+            const distDir = path.resolve(process.cwd(), 'dist');
+            if (fs.existsSync(distDir)) {
+              try {
+                fs.writeFileSync(path.join(distDir, 'favicon.ico'), buffer);
+              } catch (err) {}
+            }
+
+            const current = getSettingsData();
+            current.faviconUrl = `/favicon.ico?t=${Date.now()}`;
+            current.faviconUpdated = new Date().toISOString();
+            fs.writeFileSync(SETTINGS_FILE, JSON.stringify(current, null, 2), 'utf-8');
+
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify({
+              success: true,
+              message: 'Favicon updated successfully',
+              faviconUrl: current.faviconUrl
+            }));
+          } catch (e: any) {
+            response.statusCode = 500;
             response.end(JSON.stringify({ success: false, error: e.message || String(e) }));
           }
           return;

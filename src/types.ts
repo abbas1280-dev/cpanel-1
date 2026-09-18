@@ -10,7 +10,7 @@ export interface UserProfile {
   twoFactorEnabled: boolean;
 }
 
-export type ActiveTab = 'dashboard' | 'services' | 'domains' | 'profile' | 'cpanel' | 'filemanager' | 'cpanel_domains' | 'cpanel_databases';
+export type ActiveTab = 'dashboard' | 'services' | 'domains' | 'profile' | 'cpanel' | 'filemanager' | 'cpanel_domains' | 'cpanel_databases' | 'settings';
 
 export type DomainType = 'primary' | 'subdomain' | 'addon';
 export type DomainStatus = 'active' | 'pending' | 'dns_pending' | 'ssl_pending' | 'config_error' | 'suspended';
@@ -68,6 +68,7 @@ export interface ServerMetrics {
   platform: string;
   nodeVersion: string;
   serverIp: string;
+  publicIp?: string;
   uptimeSeconds: number;
   cpu: {
     model: string;

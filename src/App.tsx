@@ -9,6 +9,7 @@ import { CustomCPanelDashboard } from './components/CustomCPanelDashboard';
 import { FileManagerView } from './components/FileManagerView';
 import { CPanelDomainsView } from './components/CPanelDomainsView';
 import { CPanelDatabasesView } from './components/CPanelDatabasesView';
+import { GeneralSettingsView } from './components/GeneralSettingsView';
 import { UserProfile, ActiveTab, ServiceItem, DomainItem, ServerMetrics } from './types';
 import { CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 
@@ -102,13 +103,29 @@ export function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch initial portal settings (e.g. custom favicon) on mount
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.faviconUrl) {
+          let link = document.getElementById('app-favicon') as HTMLLinkElement | null;
+          if (!link) link = document.querySelector("link[rel*='icon']");
+          if (link) {
+            link.href = `${data.faviconUrl}${data.faviconUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load initial settings:', err));
+  }, []);
+
   // Handle URL query parameters for direct tab navigation (e.g. ?tab=filemanager&domain=...)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as ActiveTab;
       const domainParam = params.get('domain');
-      if (tabParam && ['dashboard', 'services', 'domains', 'profile', 'cpanel', 'filemanager', 'cpanel_domains', 'cpanel_databases'].includes(tabParam)) {
+      if (tabParam && ['dashboard', 'services', 'domains', 'profile', 'settings', 'cpanel', 'filemanager', 'cpanel_domains', 'cpanel_databases'].includes(tabParam)) {
         setActiveTab(tabParam);
       }
       if (domainParam) {
@@ -370,6 +387,7 @@ export function App() {
         setActiveTab={setActiveTab}
         isMobileOpen={isMobileOpen}
         setIsMobileOpen={setIsMobileOpen}
+        domainsCount={domains.length}
       />
 
       {/* Main Content Area */}
@@ -443,6 +461,13 @@ export function App() {
               user={user}
               onUpdateProfile={handleUpdateProfile}
               onLogout={() => setShowLogoutModal(true)}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'settings' && (
+            <GeneralSettingsView
+              serverMetrics={serverMetrics}
               showToast={showToast}
             />
           )}
