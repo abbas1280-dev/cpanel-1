@@ -1284,13 +1284,6 @@ export function serverApiPlugin(): Plugin {
               return;
             }
 
-            // Guard: Protected system root directories must never be deleted
-            const isAtDomainRoot = !cleanSubpath || cleanSubpath === '.';
-            const protectedSystemDirs = new Set([
-              'public_html', 'mail', 'ssl', 'etc', 'tmp', 'logs', 
-              '.trash', 'domains', 'vhosts', 'public_ftp', 'lscache'
-            ]);
-
             const trashDir = path.join(domainRoot, '.trash');
             fs.mkdirSync(trashDir, { recursive: true });
 
@@ -1303,21 +1296,7 @@ export function serverApiPlugin(): Plugin {
               if (!rawItem || typeof rawItem !== 'string') continue;
               const cleanItem = rawItem.replace(/^[/\\]+/, '').trim();
               if (!cleanItem || cleanItem === '.' || cleanItem === '..') continue;
-
-              const itemLower = cleanItem.toLowerCase();
-              if (isAtDomainRoot && protectedSystemDirs.has(itemLower)) {
-                // If only this single system item was selected to delete from domain root, inform user
-                if (items.length === 1) {
-                  response.statusCode = 400;
-                  response.end(JSON.stringify({
-                    error: `Protected directory: System directory "${rawItem}" is part of the core hosting environment and cannot be deleted from domain root.`
-                  }));
-                  return;
-                }
-                // When batch/Select All is performed at root, safely preserve system directory and proceed deleting user items
-                preserved.push(rawItem);
-                continue;
-              }
+              if (cleanItem.toLowerCase() === '.trash' && !skipTrash) continue;
 
               // Resolve target file or directory
               let target = path.resolve(currentDir, cleanItem);
@@ -1657,9 +1636,7 @@ export function serverApiPlugin(): Plugin {
 
             const domainRoot = path.join(STORAGE_ROOT, 'domains', domain);
             if (!fs.existsSync(domainRoot)) {
-              response.statusCode = 404;
-              response.end(JSON.stringify({ error: 'Domain storage root not found' }));
-              return;
+              fs.mkdirSync(domainRoot, { recursive: true });
             }
 
             const restoredItems: string[] = [];
@@ -1671,7 +1648,8 @@ export function serverApiPlugin(): Plugin {
               { name: 'tmp', perm: '0755' },
               { name: 'mail', perm: '0751' },
               { name: 'logs', perm: '0700' },
-              { name: 'etc', perm: '0750' }
+              { name: 'etc', perm: '0750' },
+              { name: 'access-logs', perm: '0755' }
             ];
 
             for (const d of coreDirs) {

@@ -1,6 +1,6 @@
 [
   {
-    "id": "rec-1789700885288-1",
+    "id": "rec-1789702090906-1",
     "name": "tamim1280.shop",
     "type": "A",
     "value": "192.168.0.104",
@@ -9,7 +9,7 @@
     "managedBy": "Sitechai DNS"
   },
   {
-    "id": "rec-1789700885288-2",
+    "id": "rec-1789702090906-2",
     "name": "www.tamim1280.shop",
     "type": "CNAME",
     "value": "tamim1280.shop",
